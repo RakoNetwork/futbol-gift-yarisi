@@ -4,6 +4,11 @@ Football Gift Race — TikTok Live server
 Termux / Android ready
 """
 
+# TikTokLive importu başarısız olsa bile aşağıdaki fonksiyon imzalarındaki
+# (event: ConnectEvent gibi) tip belirteçleri satır çalışma zamanında
+# değerlendirilmesin diye — yoksa NameError ile tüm uygulama çöküyordu.
+from __future__ import annotations
+
 import asyncio
 import json
 import os
@@ -19,9 +24,16 @@ try:
         LikeEvent, FollowEvent, ShareEvent, CommentEvent
     )
     TIKTOK_AVAILABLE = True
-except ImportError:
+except Exception as _tiktok_import_error:
     TIKTOK_AVAILABLE = False
-    print("pip install TikTokLive")
+    # Bu sınıfları da None yapıyoruz; `from __future__ import annotations`
+    # zaten fonksiyon imzalarındaki tip belirteçlerinin çalışma zamanında
+    # değerlendirilmesini engelliyor, ama olası başka bir referansa karşı
+    # (ör. izinsiz bir yerde ConnectEvent() çağrılırsa) yine de tanımlı olsunlar.
+    TikTokLiveClient = None
+    ConnectEvent = DisconnectEvent = GiftEvent = None
+    LikeEvent = FollowEvent = ShareEvent = CommentEvent = None
+    print(f"[TikTokLive import failed] {type(_tiktok_import_error).__name__}: {_tiktok_import_error}")
 
 HOST = "0.0.0.0"
 PORT = 8000

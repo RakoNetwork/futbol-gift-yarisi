@@ -1,0 +1,56 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    # ubuntu-latest yerine sabit bir sürüm kullanıyoruz; ubuntu-latest
+    # ileride yeni bir Ubuntu sürümüne kayınca (ör. 26.04) buildozer/p4a
+    # ve bazı apt paketleri (ör. libtinfo5) kırılabiliyor.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip python3-pip \
+            autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
+            libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev build-essential
+
+      - name: Install buildozer & cython
+        run: pip install --upgrade buildozer cython==0.29.36 virtualenv
+
+      # ArtemSBulgakov/buildozer-action@v1 KULLANMIYORUZ: bu action kendi
+      # Docker imajını (ghcr.io/kivy/buildozer:latest) çekiyor ve o imaj
+      # zaman zaman Ubuntu'nun henüz yayınlanmamış/deneysel sürümüne
+      # güncellenip openjdk-r PPA'sının 404 vermesine yol açabiliyor.
+      # Bunun yerine buildozer'ı doğrudan runner üzerinde, yukarıda kurulan
+      # JDK ve sistem paketleriyle çalıştırıyoruz.
+      - name: Build APK with Buildozer
+        run: |
+          yes | buildozer android debug
+
+      - name: Find APK path
+        id: find_apk
+        run: echo "path=$(find bin -name '*.apk' | head -n1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: futbolgiftyarisi-apk
+          path: ${{ steps.find_apk.outputs.path }}

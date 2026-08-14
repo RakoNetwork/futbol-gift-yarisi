@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""
-Futbol Gift Yarışı — Android giriş noktası
-
-Buildozer/p4a webview bootstrap:
-    main.py
-        ↓
-    server.py
-        ↓
-    aiohttp :8000
-        ↓
-    Android WebView
-"""
 
 import asyncio
 
@@ -18,11 +6,6 @@ from server import main as server_main
 
 
 def _hide_android_navigation():
-    """
-    Android'de durum ve navigasyon çubuklarını gizler.
-
-    Termux / masaüstünde pyjnius yoksa sessizce devam eder.
-    """
 
     try:
 
@@ -62,29 +45,26 @@ def _hide_android_navigation():
 
             try:
 
-                decor_view = (
+                decor = (
                     activity
                     .getWindow()
                     .getDecorView()
                 )
 
-                decor_view.setSystemUiVisibility(
+                decor.setSystemUiVisibility(
                     flags
                 )
 
             except Exception as e:
 
                 print(
-                    "[Fullscreen] apply error:",
+                    "[Fullscreen] error:",
                     e
                 )
 
         activity.runOnUiThread(
             apply_flags
         )
-
-        # Android ekran odağı geri geldiğinde
-        # immersive flags tekrar uygulanır.
 
         try:
 
@@ -115,7 +95,7 @@ def _hide_android_navigation():
                         except Exception:
                             pass
 
-            decor_view = (
+            decor = (
                 activity
                 .getWindow()
                 .getDecorView()
@@ -123,13 +103,10 @@ def _hide_android_navigation():
 
             listener = FocusListener()
 
-            decor_view \
-                .getViewTreeObserver() \
-                .addOnWindowFocusChangeListener(
-                    listener
-                )
+            decor.getViewTreeObserver().addOnWindowFocusChangeListener(
+                listener
+            )
 
-            # Listener GC tarafından silinmesin.
             _hide_android_navigation.listener = (
                 listener
             )
@@ -137,8 +114,7 @@ def _hide_android_navigation():
         except Exception as e:
 
             print(
-                "[Fullscreen] "
-                "focus listener error:",
+                "[Fullscreen] listener error:",
                 e
             )
 

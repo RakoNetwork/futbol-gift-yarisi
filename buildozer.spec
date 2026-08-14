@@ -17,7 +17,7 @@ version = 1.0.0
 # PYTHON
 # ============================================================
 
-requirements = python3==3.11.9,hostpython3==3.11.9,aiohttp,httpx,httpcore,h11,anyio,sniffio,certifi,idna,charset-normalizer,attrs,aiosignal,multidict,yarl,frozenlist,async-timeout,pyee==13.0.1,ffmpy,websockets,websockets_proxy==0.1.3,betterproto==2.0.0b7,mashumaro,protobuf,protobuf3-to-dict,typing-extensions,EulerApiSdk==0.0.3,TikTokLive==6.6.5,TikTokLiveProto,pyjnius,betterproto2==0.9.0,requests,websocket-client,pydantic==2.12.2,pydantic-core==2.41.4,annotated-types,typing-inspection,python-socks
+requirements = python3==3.11.9,hostpython3==3.11.9,aiohttp,httpx,httpcore,h11,anyio,sniffio,certifi,idna,charset-normalizer,attrs,aiosignal,multidict,yarl,frozenlist,async-timeout,pyee==13.0.1,ffmpy,websockets,websockets_proxy==0.1.3,betterproto==2.0.0b7,mashumaro,protobuf,protobuf3-to-dict,typing-extensions,EulerApiSdk==0.6.0,TikTokLive==6.6.5,TikTokLiveProto,pyjnius,betterproto2==0.9.0,requests,websocket-client,pydantic==2.12.2,pydantic-core==2.41.4,annotated-types,typing-inspection,python-socks
 
 
 # ============================================================

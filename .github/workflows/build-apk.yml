@@ -3,67 +3,212 @@ name: Build APK
 on:
   push:
     branches: [ main ]
+
   workflow_dispatch: {}
 
 jobs:
+
   build:
-    # ubuntu-latest yerine sabit bir sürüm kullanıyoruz; ubuntu-latest
-    # ileride yeni bir Ubuntu sürümüne kayınca (ör. 26.04) buildozer/p4a
-    # ve bazı apt paketleri (ör. libtinfo5) kırılabiliyor.
+
     runs-on: ubuntu-22.04
+
     steps:
-      - uses: actions/checkout@v4
+
+      # ======================================================
+      # CHECKOUT
+      # ======================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ======================================================
+      # PYTHON
+      # ======================================================
 
       - name: Set up Python
         uses: actions/setup-python@v5
+
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+
+
+      # ======================================================
+      # JAVA
+      # ======================================================
 
       - name: Set up JDK
         uses: actions/setup-java@v4
+
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
+
+
+      # ======================================================
+      # SYSTEM DEPENDENCIES
+      # ======================================================
 
       - name: Install system dependencies
         run: |
+
           sudo apt-get update
-          sudo apt-get install -y git zip unzip python3-pip \
-            autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
-            libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev build-essential
 
-      - name: Install buildozer & cython
-        run: pip install --upgrade buildozer cython==0.29.36 virtualenv
+          sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            python3-pip \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5 \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            build-essential
 
-      - name: EulerApiSdk yapisini kontrol et
+
+      # ======================================================
+      # BUILD TOOLS
+      # ======================================================
+
+      - name: Install Buildozer and Cython
         run: |
-          python3 -m pip install EulerApiSdk==0.1.1
-          python3 -c "
-          import EulerApiSdk, os
-          base = os.path.dirname(EulerApiSdk.__file__)
-          print('EulerApiSdk yolu:', base)
-          for root, dirs, files in os.walk(os.path.join(base, 'api')):
-              rel = os.path.relpath(root, base)
-              has_init = '__init__.py' in files
-              print(f'{rel}  -> __init__.py var mi: {has_init}')
-          "
 
-      # ArtemSBulgakov/buildozer-action@v1 KULLANMIYORUZ: bu action kendi
-      # Docker imajını (ghcr.io/kivy/buildozer:latest) çekiyor ve o imaj
-      # zaman zaman Ubuntu'nun henüz yayınlanmamış/deneysel sürümüne
-      # güncellenip openjdk-r PPA'sının 404 vermesine yol açabiliyor.
-      # Bunun yerine buildozer'ı doğrudan runner üzerinde, yukarıda kurulan
-      # JDK ve sistem paketleriyle çalıştırıyoruz.
+          python -m pip install --upgrade pip
+
+          python -m pip install \
+            buildozer \
+            cython==0.29.36 \
+            virtualenv
+
+
+      # ======================================================
+      # CHECK TIKTOKLIVE / EULER
+      # ======================================================
+
+      - name: Check TikTokLive and EulerApiSdk
+        run: |
+
+          python -m pip install \
+            TikTokLive==6.6.5 \
+            EulerApiSdk==0.1.1
+
+          python - <<'PY'
+          import sys
+          import TikTokLive
+          import EulerApiSdk
+
+          print("Python:", sys.version)
+
+          print(
+              "TikTokLive:",
+              getattr(
+                  TikTokLive,
+                  "__version__",
+                  "unknown"
+              )
+          )
+
+          print(
+              "TikTokLive path:",
+              getattr(
+                  TikTokLive,
+                  "__file__",
+                  "unknown"
+              )
+          )
+
+          print(
+              "EulerApiSdk:",
+              getattr(
+                  EulerApiSdk,
+                  "__version__",
+                  "unknown"
+              )
+          )
+
+          print(
+              "EulerApiSdk path:",
+              getattr(
+                  EulerApiSdk,
+                  "__file__",
+                  "unknown"
+              )
+          )
+
+          try:
+
+              from EulerApiSdk.api.tik_tok_live import fetch_webcast_url
+
+              print(
+                  "fetch_webcast_url: OK"
+              )
+
+              print(
+                  "fetch_webcast_url module:",
+                  getattr(
+                      fetch_webcast_url,
+                      "__file__",
+                      "unknown"
+                  )
+              )
+
+          except Exception as e:
+
+              print(
+                  "fetch_webcast_url ERROR:",
+                  type(e).__name__,
+                  str(e)
+              )
+
+              raise
+          PY
+
+
+      # ======================================================
+      # BUILD APK
+      # ======================================================
+
       - name: Build APK with Buildozer
         run: |
+
           yes | buildozer android debug
+
+
+      # ======================================================
+      # FIND APK
+      # ======================================================
 
       - name: Find APK path
         id: find_apk
-        run: echo "path=$(find bin -name '*.apk' | head -n1)" >> "$GITHUB_OUTPUT"
+
+        run: |
+
+          APK_PATH="$(find bin -type f -name '*.apk' | head -n 1)"
+
+          if [ -z "$APK_PATH" ]; then
+            echo "APK bulunamadı."
+            find . -maxdepth 4 -type f
+            exit 1
+          fi
+
+          echo "APK: $APK_PATH"
+
+          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+
+      # ======================================================
+      # UPLOAD APK
+      # ======================================================
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
+
         with:
           name: futbolgiftyarisi-apk
           path: ${{ steps.find_apk.outputs.path }}

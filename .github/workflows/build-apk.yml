@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+
       # ============================================================
       # SOURCE
       # ============================================================
@@ -99,8 +100,6 @@ jobs:
         run: |
           python - <<'PY'
           import sys
-          import os
-
           import TikTokLive
           import EulerApiSdk
 
@@ -108,11 +107,11 @@ jobs:
           print("PYTHON")
           print("=" * 70)
 
-          print("Python:", sys.version)
+          print("Python:")
+          print(sys.version)
 
           print()
           print("TikTokLive:")
-          print("  module:", TikTokLive)
           print("  path:", getattr(TikTokLive, "__file__", "unknown"))
           print(
               "  version:",
@@ -125,7 +124,6 @@ jobs:
 
           print()
           print("EulerApiSdk:")
-          print("  module:", EulerApiSdk)
           print("  path:", getattr(EulerApiSdk, "__file__", "unknown"))
           print(
               "  version:",
@@ -141,223 +139,116 @@ jobs:
 
 
       # ============================================================
-      # INSPECT EULER API SDK
-      #
-      # Burada artık build'i durdurmuyoruz.
-      #
-      # Amaç:
-      # EulerApiSdk 0.1.1'in gerçek dosya yapısını görmek.
-      # Özellikle:
-      #
-      # tik_tok_live
-      # fetch_webcast_url
-      #
-      # gerçekten hangi dosyada bulunuyor bunu tespit etmek.
+      # TEST CORRECT EULER MODULE
       # ============================================================
 
-      - name: Inspect EulerApiSdk structure
+      - name: Test Euler fetch_webcast_url
         run: |
           python - <<'PY'
-          import os
-          import EulerApiSdk
+          import inspect
 
-          base = os.path.dirname(
-              EulerApiSdk.__file__
+          print("=" * 70)
+          print("EULER fetch_webcast_url TEST")
+          print("=" * 70)
+
+          from EulerApiSdk.api.tik_tok_live_rooms import (
+              fetch_webcast_url
           )
 
           print()
-          print("=" * 70)
-          print("EULER API SDK STRUCTURE")
-          print("=" * 70)
-
-          print("EulerApiSdk base:")
-          print(base)
+          print("IMPORT: OK")
 
           print()
+          print("FUNCTION:")
+          print(fetch_webcast_url)
 
-          for root, dirs, files in os.walk(base):
-
-              rel = os.path.relpath(
-                  root,
-                  base
+          print()
+          print("MODULE:")
+          print(
+              getattr(
+                  fetch_webcast_url,
+                  "__module__",
+                  "unknown"
               )
-
-              print()
-              print("[DIR]", rel)
-
-              for filename in sorted(files):
-
-                  print(
-                      "   ",
-                      filename
-                  )
+          )
 
           print()
-          print("=" * 70)
-          print("SEARCH: fetch_webcast_url")
-          print("=" * 70)
-
-          found = []
-
-          for root, dirs, files in os.walk(base):
-
-              for filename in files:
-
-                  path = os.path.join(
-                      root,
-                      filename
-                  )
-
-                  try:
-
-                      with open(
-                          path,
-                          "r",
-                          encoding="utf-8",
-                          errors="ignore"
-                      ) as f:
-
-                          text = f.read()
-
-                      if (
-                          "fetch_webcast_url"
-                          in text
-                      ):
-
-                          found.append(path)
-
-                          print(
-                              "FOUND:",
-                              path
-                          )
-
-                  except Exception:
-                      pass
-
-          if not found:
-
-              print(
-                  "fetch_webcast_url metni "
-                  "paket dosyalarında bulunamadı."
-              )
-
-          print()
-          print("=" * 70)
-          print("IMPORT TEST")
-          print("=" * 70)
+          print("SIGNATURE:")
 
           try:
-
-              import EulerApiSdk.api.tik_tok_live as ttl
-
               print(
-                  "tik_tok_live module:",
-                  getattr(
-                      ttl,
-                      "__file__",
-                      "unknown"
+                  inspect.signature(
+                      fetch_webcast_url
                   )
               )
-
-              print(
-                  "tik_tok_live attributes:"
-              )
-
-              for name in sorted(
-                  x
-                  for x in dir(ttl)
-                  if not x.startswith("_")
-              ):
-
-                  print(
-                      "   ",
-                      name
-                  )
-
           except Exception as e:
-
               print(
-                  "tik_tok_live import error:",
+                  "signature error:",
                   type(e).__name__,
                   str(e)
               )
 
-          try:
-
-              from EulerApiSdk.api.tik_tok_live import (
-                  fetch_webcast_url
-              )
-
-              print(
-                  "DIRECT IMPORT: OK"
-              )
-
-              print(
-                  "module:",
-                  getattr(
-                      fetch_webcast_url,
-                      "__file__",
-                      "unknown"
-                  )
-              )
-
-          except Exception as e:
-
-              print(
-                  "DIRECT IMPORT: FAILED"
-              )
-
-              print(
-                  "error:",
-                  type(e).__name__,
-                  str(e)
-              )
+          print()
+          print("SOURCE:")
 
           try:
-
-              import importlib
-
-              module = importlib.import_module(
-                  "EulerApiSdk.api.tik_tok_live.fetch_webcast_url"
-              )
-
               print(
-                  "SUBMODULE IMPORT: OK"
-              )
-
-              print(
-                  "module:",
-                  getattr(
-                      module,
-                      "__file__",
-                      "unknown"
+                  inspect.getsource(
+                      fetch_webcast_url
                   )
               )
-
-              print(
-                  "attributes:",
-                  [
-                      x
-                      for x in dir(module)
-                      if not x.startswith("_")
-                  ]
-              )
-
           except Exception as e:
-
               print(
-                  "SUBMODULE IMPORT: FAILED"
-              )
-
-              print(
-                  "error:",
+                  "source unavailable:",
                   type(e).__name__,
                   str(e)
               )
 
           print()
           print("=" * 70)
-          print("END EULER INSPECTION")
+          print("EULER TEST SUCCESS")
+          print("=" * 70)
+          PY
+
+
+      # ============================================================
+      # TIKTOKLIVE TEST
+      # ============================================================
+
+      - name: Test TikTokLive
+        run: |
+          python - <<'PY'
+          import inspect
+
+          print("=" * 70)
+          print("TIKTOKLIVE TEST")
+          print("=" * 70)
+
+          from TikTokLive import TikTokLiveClient
+
+          print()
+          print("TikTokLiveClient:")
+          print(TikTokLiveClient)
+
+          print()
+          print("Signature:")
+
+          try:
+              print(
+                  inspect.signature(
+                      TikTokLiveClient
+                  )
+              )
+          except Exception as e:
+              print(
+                  "signature error:",
+                  type(e).__name__,
+                  str(e)
+              )
+
+          print()
+          print("=" * 70)
+          print("TIKTOKLIVE TEST SUCCESS")
           print("=" * 70)
           PY
 

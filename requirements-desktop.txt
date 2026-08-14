@@ -1,2 +1,3 @@
 aiohttp
-TikTokLive
+TikTokLive==6.6.5
+EulerApiSdk==0.0.3

@@ -63,14 +63,18 @@ except Exception as e:
 try:
     import EulerApiSdk.api.tik_tok_live as _euler_ttl
 
-    def _euler_ttl_getattr(name):
-        placeholder = type(name, (), {})
-        setattr(_euler_ttl, name, placeholder)
-        print(f"[DEBUG] EulerApiSdk placeholder üretildi: {name}")
-        return placeholder
-
-    _euler_ttl.__getattr__ = _euler_ttl_getattr
-    print("[DEBUG] EulerApiSdk.api.tik_tok_live için otomatik placeholder aktif")
+    # Artık her eksik ismi sahte/boş bir placeholder ile doldurmuyoruz —
+    # bu, gerçekten var olan 'fetch_webcast_url' modülünü de maskeleyip
+    # "_get_kwargs" hatasına yol açmıştı. Sadece GERÇEKTEN eksik olan
+    # 'sign_webcast_url' ismini, aynı işi yapan gerçek 'fetch_webcast_url'
+    # modülüne alias'lıyoruz — sahte class değil, gerçek modülün kendisi.
+    if not hasattr(_euler_ttl, "sign_webcast_url"):
+        from EulerApiSdk.api.tik_tok_live import fetch_webcast_url as _real_fetch_mod
+        _euler_ttl.sign_webcast_url = _real_fetch_mod
+        sys.modules["EulerApiSdk.api.tik_tok_live.sign_webcast_url"] = _real_fetch_mod
+        print("[DEBUG] sign_webcast_url -> fetch_webcast_url (gerçek modül) alias'landı")
+    else:
+        print("[DEBUG] sign_webcast_url zaten mevcut, alias gerekmedi")
 except Exception as e:
     print("[DEBUG] EulerApiSdk.api.tik_tok_live import edilemedi:", type(e).__name__, e)
 

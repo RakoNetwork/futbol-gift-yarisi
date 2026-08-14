@@ -2,77 +2,86 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch: {}
+    branches:
+      - main
+
+  workflow_dispatch:
 
 jobs:
+
   build:
+
     runs-on: ubuntu-22.04
+
+    timeout-minutes: 60
 
     steps:
 
-      # ============================================================
-      # SOURCE
-      # ============================================================
+      # ========================================================
+      # CHECKOUT
+      # ========================================================
 
       - name: Checkout
         uses: actions/checkout@v4
 
 
-      # ============================================================
+      # ========================================================
       # PYTHON
-      # ============================================================
+      # ========================================================
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
+
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
 
-      # ============================================================
+      # ========================================================
       # JAVA
-      # ============================================================
+      # ========================================================
 
-      - name: Set up JDK
+      - name: Setup Java
         uses: actions/setup-java@v4
+
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
 
-      # ============================================================
-      # SYSTEM DEPENDENCIES
-      # ============================================================
+      # ========================================================
+      # SYSTEM
+      # ========================================================
 
-      - name: Install system dependencies
+      - name: Install system packages
         run: |
+
           sudo apt-get update
 
           sudo apt-get install -y \
             git \
             zip \
             unzip \
-            python3-pip \
+            build-essential \
             autoconf \
             automake \
             libtool \
             pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo5 \
             cmake \
             libffi-dev \
             libssl-dev \
-            build-essential
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5
 
 
-      # ============================================================
+      # ========================================================
       # BUILDOZER
-      # ============================================================
+      # ========================================================
 
-      - name: Install Buildozer and Cython
+      - name: Install Buildozer
         run: |
+
           python -m pip install --upgrade pip
 
           python -m pip install \
@@ -81,214 +90,233 @@ jobs:
             virtualenv
 
 
-      # ============================================================
-      # TIKTOKLIVE + EULER API SDK
-      # ============================================================
+      # ========================================================
+      # VERIFY VERSIONS
+      # ========================================================
 
-      - name: Install TikTokLive and EulerApiSdk
+      - name: Verify Python packages
         run: |
+
           python -m pip install \
-            TikTokLive==6.6.5 \
-            EulerApiSdk==0.1.1
+            "TikTokLive==6.6.5" \
+            "EulerApiSdk==0.0.3"
 
-
-      # ============================================================
-      # CHECK PYTHON PACKAGES
-      # ============================================================
-
-      - name: Check installed versions
-        run: |
           python - <<'PY'
+
           import sys
-          import TikTokLive
-          import EulerApiSdk
+          import importlib.metadata as metadata
 
           print("=" * 70)
           print("PYTHON")
           print("=" * 70)
 
-          print("Python:")
           print(sys.version)
 
           print()
-          print("TikTokLive:")
-          print("  path:", getattr(TikTokLive, "__file__", "unknown"))
           print(
-              "  version:",
-              getattr(
-                  TikTokLive,
-                  "__version__",
-                  "unknown"
-              )
+              "TikTokLive:",
+              metadata.version("TikTokLive")
           )
 
-          print()
-          print("EulerApiSdk:")
-          print("  path:", getattr(EulerApiSdk, "__file__", "unknown"))
           print(
-              "  version:",
-              getattr(
-                  EulerApiSdk,
-                  "__version__",
-                  "unknown"
-              )
+              "EulerApiSdk:",
+              metadata.version("EulerApiSdk")
+          )
+
+          print(
+              "TikTokLiveProto:",
+              metadata.version("TikTokLiveProto")
+          )
+
+          print(
+              "betterproto2:",
+              metadata.version("betterproto2")
           )
 
           print("=" * 70)
+
           PY
 
 
-      # ============================================================
-      # TEST CORRECT EULER MODULE
-      # ============================================================
+      # ========================================================
+      # TEST EULER COMPATIBILITY
+      # ========================================================
 
-      - name: Test Euler fetch_webcast_url
+      - name: Test Euler compatibility
         run: |
+
           python - <<'PY'
-          import inspect
 
-          print("=" * 70)
-          print("EULER fetch_webcast_url TEST")
-          print("=" * 70)
-
-          from EulerApiSdk.api.tik_tok_live_rooms import (
-              fetch_webcast_url
+          from EulerApiSdk.api.tik_tok_live import (
+              sign_webcast_url
           )
 
-          print()
-          print("IMPORT: OK")
+          print("=" * 70)
+          print("Euler compatibility test")
+          print("=" * 70)
 
-          print()
-          print("FUNCTION:")
-          print(fetch_webcast_url)
-
-          print()
-          print("MODULE:")
           print(
-              getattr(
-                  fetch_webcast_url,
-                  "__module__",
-                  "unknown"
-              )
+              "sign_webcast_url:",
+              sign_webcast_url
           )
 
-          print()
-          print("SIGNATURE:")
+          print(
+              "module:",
+              sign_webcast_url.__name__
+          )
 
-          try:
-              print(
-                  inspect.signature(
-                      fetch_webcast_url
-                  )
-              )
-          except Exception as e:
-              print(
-                  "signature error:",
-                  type(e).__name__,
-                  str(e)
-              )
-
-          print()
-          print("SOURCE:")
-
-          try:
-              print(
-                  inspect.getsource(
-                      fetch_webcast_url
-                  )
-              )
-          except Exception as e:
-              print(
-                  "source unavailable:",
-                  type(e).__name__,
-                  str(e)
-              )
-
-          print()
           print("=" * 70)
-          print("EULER TEST SUCCESS")
+          print("EULER COMPATIBILITY OK")
           print("=" * 70)
+
           PY
 
 
-      # ============================================================
-      # TIKTOKLIVE TEST
-      # ============================================================
+      # ========================================================
+      # TEST TIKTOKLIVE
+      # ========================================================
 
-      - name: Test TikTokLive
+      - name: Test TikTokLive import
         run: |
-          python - <<'PY'
-          import inspect
 
-          print("=" * 70)
-          print("TIKTOKLIVE TEST")
-          print("=" * 70)
+          python - <<'PY'
+
+          import inspect
 
           from TikTokLive import TikTokLiveClient
 
-          print()
-          print("TikTokLiveClient:")
-          print(TikTokLiveClient)
+          from TikTokLive.events import (
+              ConnectEvent,
+              DisconnectEvent,
+              GiftEvent,
+              LikeEvent,
+              FollowEvent,
+              ShareEvent,
+              CommentEvent,
+          )
 
-          print()
-          print("Signature:")
-
-          try:
-              print(
-                  inspect.signature(
-                      TikTokLiveClient
-                  )
-              )
-          except Exception as e:
-              print(
-                  "signature error:",
-                  type(e).__name__,
-                  str(e)
-              )
-
-          print()
           print("=" * 70)
-          print("TIKTOKLIVE TEST SUCCESS")
+          print("TikTokLive import test")
           print("=" * 70)
+
+          print(
+              "Client:",
+              TikTokLiveClient
+          )
+
+          print(
+              "Signature:",
+              inspect.signature(
+                  TikTokLiveClient
+              )
+          )
+
+          print(
+              "ConnectEvent:",
+              ConnectEvent
+          )
+
+          print(
+              "GiftEvent:",
+              GiftEvent
+          )
+
+          print(
+              "LikeEvent:",
+              LikeEvent
+          )
+
+          print(
+              "FollowEvent:",
+              FollowEvent
+          )
+
+          print("=" * 70)
+          print("TIKTOKLIVE IMPORT OK")
+          print("=" * 70)
+
           PY
 
 
-      # ============================================================
-      # BUILDOZER BUILD
-      # ============================================================
+      # ========================================================
+      # TEST SERVER
+      # ========================================================
 
-      - name: Build APK with Buildozer
+      - name: Test server import
         run: |
+
+          python - <<'PY'
+
+          import server
+
+          print("=" * 70)
+          print("SERVER TEST")
+          print("=" * 70)
+
+          print(
+              "TikTokLive available:",
+              server.TIKTOK_AVAILABLE
+          )
+
+          if not server.TIKTOK_AVAILABLE:
+              raise SystemExit(
+                  "TikTokLive import failed"
+              )
+
+          print("=" * 70)
+          print("SERVER IMPORT OK")
+          print("=" * 70)
+
+          PY
+
+
+      # ========================================================
+      # BUILDOZER
+      # ========================================================
+
+      - name: Build APK
+        run: |
+
           yes | buildozer android debug
 
 
-      # ============================================================
+      # ========================================================
       # FIND APK
-      # ============================================================
+      # ========================================================
 
       - name: Find APK
         id: find_apk
         shell: bash
+
         run: |
+
           APK_PATH="$(find bin -type f -name '*.apk' | head -n 1)"
 
           if [ -z "$APK_PATH" ]; then
+
             echo "APK bulunamadı."
+
+            find bin -type f || true
+
             exit 1
+
           fi
 
-          echo "APK bulundu:"
+          echo "APK:"
           echo "$APK_PATH"
 
           echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
 
 
-      # ============================================================
-      # UPLOAD APK
-      # ============================================================
+      # ========================================================
+      # UPLOAD
+      # ========================================================
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
+
         with:
+
           name: futbolgiftyarisi-apk
+
           path: ${{ steps.find_apk.outputs.path }}

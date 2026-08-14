@@ -18,15 +18,18 @@ from aiohttp import web
 import aiohttp
 
 try:
-    # UYUMLULUK YAMASI (v2): fetch_webcast_url bir attribute değil, ayrı bir
-    # alt modül dosyası — önce onu doğrudan import edip paket objesine
-    # 'sign_webcast_url' adıyla elle attribute olarak ekliyoruz.
-    from EulerApiSdk.api.tik_tok_live import fetch_webcast_url as _fetch_webcast_url_submodule
-    import EulerApiSdk.api.tik_tok_live as _euler_ttl_module
-    if not hasattr(_euler_ttl_module, "sign_webcast_url"):
-        _euler_ttl_module.sign_webcast_url = _fetch_webcast_url_submodule
-except Exception as _shim_error:
-    print(f"[EulerApiSdk shim atlandı] {type(_shim_error).__name__}: {_shim_error}")
+    from TikTokLive import TikTokLiveClient
+    from TikTokLive.events import (
+        ConnectEvent, DisconnectEvent, GiftEvent,
+        LikeEvent, FollowEvent, ShareEvent, CommentEvent
+    )
+    TIKTOK_AVAILABLE = True
+except Exception as _tiktok_import_error:
+    TIKTOK_AVAILABLE = False
+    TikTokLiveClient = None
+    ConnectEvent = DisconnectEvent = GiftEvent = None
+    LikeEvent = FollowEvent = ShareEvent = CommentEvent = None
+    print(f"[TikTokLive import failed] {type(_tiktok_import_error).__name__}: {_tiktok_import_error}")
 
     from TikTokLive import TikTokLiveClient
     from TikTokLive.events import (

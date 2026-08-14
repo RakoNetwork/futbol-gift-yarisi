@@ -17,80 +17,16 @@ from pathlib import Path
 from aiohttp import web
 import aiohttp
 
-try:
-    import sys
-    import types
-    import importlib.abc
-    import importlib.machinery
-
-    class _EulerApiSdkStubFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
-        """EulerApiSdk.api altında normal import BAŞARISIZ olan bir alt modül
-        varsa, önce gerçek sebebi teşhis edip loglar (dosya gerçekten yok mu,
-        yoksa var ama execute edilirken mi patlıyor), sonra çöküşü engellemek
-        için zararsız/boş bir stub üretir."""
-
-        PREFIX = "EulerApiSdk.api."
-
-        def find_spec(self, fullname, path, target=None):
-            if not fullname.startswith(self.PREFIX):
-                return None
-
-            # Gerçek sebebi teşhis et: dosya diskte var mı?
-            try:
-                import EulerApiSdk
-                base = os.path.dirname(EulerApiSdk.__file__)
-                rel = fullname[len("EulerApiSdk."):].replace(".", os.sep)
-                candidate_py = os.path.join(base, rel + ".py")
-                candidate_pkg = os.path.join(base, rel, "__init__.py")
-                exists_py = os.path.isfile(candidate_py)
-                exists_pkg = os.path.isfile(candidate_pkg)
-                print(f"[TEŞHİS] {fullname} normal import basarisiz oldu. "
-                      f"Dosya var mi? .py={exists_py} ({candidate_py}) "
-                      f"paket={exists_pkg} ({candidate_pkg})")
-            except Exception as diag_err:
-                print(f"[TEŞHİS] EulerApiSdk taban dizini bulunamadi: {diag_err}")
-
-            return importlib.machinery.ModuleSpec(fullname, self)
-
-        def create_module(self, spec):
-            print(f"[DEBUG] EulerApiSdk stub modul uretildi: {spec.name}")
-            mod = types.ModuleType(spec.name)
-
-            def _stub_getattr(name):
-                placeholder = type(name, (), {})
-                setattr(mod, name, placeholder)
-                print(f"[DEBUG] {spec.name} icine placeholder eklendi: {name}")
-                return placeholder
-
-            mod.__getattr__ = _stub_getattr
-            return mod
-
-        def exec_module(self, module):
-            pass
-
-    sys.meta_path.append(_EulerApiSdkStubFinder())
-    print("[DEBUG] EulerApiSdk.api.* için otomatik stub-modül finder aktif")
-except Exception as e:
-    print("[DEBUG] EulerApiSdk stub finder kurulamadı:", type(e).__name__, e)
-
-try:
-    import EulerApiSdk.api.tik_tok_live as _euler_ttl
-
-    # Artık her eksik ismi sahte/boş bir placeholder ile doldurmuyoruz —
-    # bu, gerçekten var olan 'fetch_webcast_url' modülünü de maskeleyip
-    # "_get_kwargs" hatasına yol açmıştı. Sadece GERÇEKTEN eksik olan
-    # 'sign_webcast_url' ismini, aynı işi yapan gerçek 'fetch_webcast_url'
-    # modülüne alias'lıyoruz — sahte class değil, gerçek modülün kendisi.
-    if not hasattr(_euler_ttl, "sign_webcast_url"):
-        from EulerApiSdk.api.tik_tok_live import fetch_webcast_url as _real_fetch_mod
-        _euler_ttl.sign_webcast_url = _real_fetch_mod
-        sys.modules["EulerApiSdk.api.tik_tok_live.sign_webcast_url"] = _real_fetch_mod
-        print("[DEBUG] sign_webcast_url -> fetch_webcast_url (gerçek modül) alias'landı")
-    else:
-        print("[DEBUG] sign_webcast_url zaten mevcut, alias gerekmedi")
-except Exception as e:
-    print("[DEBUG] EulerApiSdk.api.tik_tok_live import edilemedi:", type(e).__name__, e)
-
+# NOT: Daha önce burada EulerApiSdk.api.* için sahte modül üreten bir
+# "_EulerApiSdkStubFinder" ve sign_webcast_url -> fetch_webcast_url alias
+# hack'i vardı. Bu hack, gerçekte APK paketine hiç dahil edilmemiş olan
+# fetch_webcast_url modülünü sahte/boş bir class ile maskeliyordu; bu da
+# TikTok bağlantısında "_get_kwargs() takes no arguments" hatasına yol
+# açıyordu. Asıl sorun kod değil, EulerApiSdk paketinin p4a build'inde
+# eksik/bozuk paketlenmesiydi. Bu yüzden hack tamamen kaldırıldı — aşağıda
+# sadece normal (gerçek) import kullanılıyor. Bu importun APK'da başarılı
+# olması için buildozer cache'ini temizleyip (rm -rf .buildozer) yeniden
+# build almanız gerekiyor.
 try:
     from TikTokLive import TikTokLiveClient
     from TikTokLive.events import (

@@ -23,50 +23,50 @@ try:
     import importlib.abc
     import importlib.machinery
 
-class _EulerApiSdkStubFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
-    """EulerApiSdk.api altında normal import BAŞARISIZ olan bir alt modül
-    varsa, önce gerçek sebebi teşhis edip loglar (dosya gerçekten yok mu,
-    yoksa var ama execute edilirken mi patlıyor), sonra çöküşü engellemek
-    için zararsız/boş bir stub üretir."""
+    class _EulerApiSdkStubFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+        """EulerApiSdk.api altında normal import BAŞARISIZ olan bir alt modül
+        varsa, önce gerçek sebebi teşhis edip loglar (dosya gerçekten yok mu,
+        yoksa var ama execute edilirken mi patlıyor), sonra çöküşü engellemek
+        için zararsız/boş bir stub üretir."""
 
-    PREFIX = "EulerApiSdk.api."
+        PREFIX = "EulerApiSdk.api."
 
-    def find_spec(self, fullname, path, target=None):
-        if not fullname.startswith(self.PREFIX):
-            return None
+        def find_spec(self, fullname, path, target=None):
+            if not fullname.startswith(self.PREFIX):
+                return None
 
-        # Gerçek sebebi teşhis et: dosya diskte var mı?
-        try:
-            import EulerApiSdk
-            base = os.path.dirname(EulerApiSdk.__file__)
-            rel = fullname[len("EulerApiSdk."):].replace(".", os.sep)
-            candidate_py = os.path.join(base, rel + ".py")
-            candidate_pkg = os.path.join(base, rel, "__init__.py")
-            exists_py = os.path.isfile(candidate_py)
-            exists_pkg = os.path.isfile(candidate_pkg)
-            print(f"[TEŞHİS] {fullname} normal import basarisiz oldu. "
-                  f"Dosya var mi? .py={exists_py} ({candidate_py}) "
-                  f"paket={exists_pkg} ({candidate_pkg})")
-        except Exception as diag_err:
-            print(f"[TEŞHİS] EulerApiSdk taban dizini bulunamadi: {diag_err}")
+            # Gerçek sebebi teşhis et: dosya diskte var mı?
+            try:
+                import EulerApiSdk
+                base = os.path.dirname(EulerApiSdk.__file__)
+                rel = fullname[len("EulerApiSdk."):].replace(".", os.sep)
+                candidate_py = os.path.join(base, rel + ".py")
+                candidate_pkg = os.path.join(base, rel, "__init__.py")
+                exists_py = os.path.isfile(candidate_py)
+                exists_pkg = os.path.isfile(candidate_pkg)
+                print(f"[TEŞHİS] {fullname} normal import basarisiz oldu. "
+                      f"Dosya var mi? .py={exists_py} ({candidate_py}) "
+                      f"paket={exists_pkg} ({candidate_pkg})")
+            except Exception as diag_err:
+                print(f"[TEŞHİS] EulerApiSdk taban dizini bulunamadi: {diag_err}")
 
-        return importlib.machinery.ModuleSpec(fullname, self)
+            return importlib.machinery.ModuleSpec(fullname, self)
 
-    def create_module(self, spec):
-        print(f"[DEBUG] EulerApiSdk stub modul uretildi: {spec.name}")
-        mod = types.ModuleType(spec.name)
+        def create_module(self, spec):
+            print(f"[DEBUG] EulerApiSdk stub modul uretildi: {spec.name}")
+            mod = types.ModuleType(spec.name)
 
-        def _stub_getattr(name):
-            placeholder = type(name, (), {})
-            setattr(mod, name, placeholder)
-            print(f"[DEBUG] {spec.name} icine placeholder eklendi: {name}")
-            return placeholder
+            def _stub_getattr(name):
+                placeholder = type(name, (), {})
+                setattr(mod, name, placeholder)
+                print(f"[DEBUG] {spec.name} icine placeholder eklendi: {name}")
+                return placeholder
 
-        mod.__getattr__ = _stub_getattr
-        return mod
+            mod.__getattr__ = _stub_getattr
+            return mod
 
-    def exec_module(self, module):
-        pass
+        def exec_module(self, module):
+            pass
 
     sys.meta_path.append(_EulerApiSdkStubFinder())
     print("[DEBUG] EulerApiSdk.api.* için otomatik stub-modül finder aktif")

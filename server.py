@@ -20,12 +20,19 @@ import aiohttp
 try:
     import EulerApiSdk.api.tik_tok_live as _euler_ttl
     print("[DEBUG] EulerApiSdk.api.tik_tok_live içeriği:", [n for n in dir(_euler_ttl) if not n.startswith("_")])
+    import pkgutil
+    try:
+        _submods = [m.name for m in pkgutil.iter_modules(_euler_ttl.__path__)]
+        print("[DEBUG] EulerApiSdk.api.tik_tok_live ALT MODÜLLERİ:", _submods)
+    except Exception as e2:
+        print("[DEBUG] pkgutil.iter_modules hata:", type(e2).__name__, e2)
 except Exception as e:
     print("[DEBUG] EulerApiSdk.api.tik_tok_live import edilemedi:", type(e).__name__, e)
 
 try:
     import EulerApiSdk
     print("[DEBUG] EulerApiSdk sürümü:", getattr(EulerApiSdk, "__version__", "bilinmiyor"))
+    print("[DEBUG] EulerApiSdk konumu:", getattr(EulerApiSdk, "__file__", "?"))
 except Exception as e:
     print("[DEBUG] EulerApiSdk hiç import edilemedi:", e)
 

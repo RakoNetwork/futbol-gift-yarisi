@@ -14,7 +14,7 @@ version = 1.0.0
 
 
 # ============================================================
-# PYTHON
+# PYTHON DEPENDENCIES
 # ============================================================
 
 requirements = python3,aiohttp,httpx,httpcore,h11,anyio,sniffio,certifi,idna,charset-normalizer,attrs,aiosignal,multidict,yarl,frozenlist,async-timeout,pyee==13.0.1,ffmpy,websockets,websockets_proxy==0.1.3,betterproto==2.0.0b7,mashumaro,protobuf,protobuf3-to-dict,typing-extensions,EulerApiSdk==0.0.3,TikTokLive==6.6.5,pyjnius
@@ -41,7 +41,9 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE,WAKE_LOCK
 
 android.api = 33
 
-android.minapi = 23
+# ÖNEMLİ:
+# remote_debugging.o / preadv / pwritev problemi üçün 24
+android.minapi = 24
 
 android.ndk = 25b
 
@@ -50,6 +52,13 @@ android.archs = arm64-v8a
 android.allow_backup = True
 
 android.accept_sdk_license = True
+
+
+# ============================================================
+# COMPILER FIX
+# ============================================================
+
+android.additional_cflags = -D_POSIX_C_SOURCE=200809L
 
 
 # ============================================================

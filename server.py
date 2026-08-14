@@ -4,10 +4,17 @@ Football Gift Race — TikTok Live server
 Termux / Android ready
 """
 
-# TikTokLive importu başarısız olsa bile aşağıdaki fonksiyon imzalarındaki
-# (event: ConnectEvent gibi) tip belirteçleri satır çalışma zamanında
-# değerlendirilmesin diye — yoksa NameError ile tüm uygulama çöküyordu.
 from __future__ import annotations
+
+# --- EulerApiSdk uyumluluk katmanı (sign_webcast_url → fetch_webcast_url) ---
+try:
+    import EulerApiSdk.api.tik_tok_live as _ttl
+    if not hasattr(_ttl, "sign_webcast_url") and hasattr(_ttl, "fetch_webcast_url"):
+        _ttl.sign_webcast_url = _ttl.fetch_webcast_url
+        print("[Compat] sign_webcast_url → fetch_webcast_url alias eklendi")
+except Exception as e:
+    print(f"[Compat] Alias eklenemedi: {e}")
+# --------------------------------------------------------------------------
 
 import asyncio
 import json
@@ -17,16 +24,6 @@ from pathlib import Path
 from aiohttp import web
 import aiohttp
 
-# NOT: Daha önce burada EulerApiSdk.api.* için sahte modül üreten bir
-# "_EulerApiSdkStubFinder" ve sign_webcast_url -> fetch_webcast_url alias
-# hack'i vardı. Bu hack, gerçekte APK paketine hiç dahil edilmemiş olan
-# fetch_webcast_url modülünü sahte/boş bir class ile maskeliyordu; bu da
-# TikTok bağlantısında "_get_kwargs() takes no arguments" hatasına yol
-# açıyordu. Asıl sorun kod değil, EulerApiSdk paketinin p4a build'inde
-# eksik/bozuk paketlenmesiydi. Bu yüzden hack tamamen kaldırıldı — aşağıda
-# sadece normal (gerçek) import kullanılıyor. Bu importun APK'da başarılı
-# olması için buildozer cache'ini temizleyip (rm -rf .buildozer) yeniden
-# build almanız gerekiyor.
 try:
     from TikTokLive import TikTokLiveClient
     from TikTokLive.events import (
@@ -36,10 +33,6 @@ try:
     TIKTOK_AVAILABLE = True
 except Exception as _tiktok_import_error:
     TIKTOK_AVAILABLE = False
-    # Bu sınıfları da None yapıyoruz; `from __future__ import annotations`
-    # zaten fonksiyon imzalarındaki tip belirteçlerinin çalışma zamanında
-    # değerlendirilmesini engelliyor, ama olası başka bir referansa karşı
-    # (ör. izinsiz bir yerde ConnectEvent() çağrılırsa) yine de tanımlı olsunlar.
     TikTokLiveClient = None
     ConnectEvent = DisconnectEvent = GiftEvent = None
     LikeEvent = FollowEvent = ShareEvent = CommentEvent = None
@@ -69,16 +62,15 @@ GIFT_MAP = {
 
 GIFT_POINTS = 1
 FOLLOW_POINTS = 2
-LIKE_POINTS = 1          # Her LIKE_EVERY like = +1 puan
-LIKE_EVERY = 20          # Her 20 like'da 1 puan
+LIKE_POINTS = 1
+LIKE_EVERY = 20
 
-# Ülke oyuncu indeksleri
-AZERBAIJAN_PLAYER = 0    # 🇦🇿 NƏRİMAN
-TURKEY_PLAYER = 1        # 🇹🇷 ARDA
+AZERBAIJAN_PLAYER = 0
+TURKEY_PLAYER = 1
 
 clients = set()
 total_likes = 0
-like_points_given = 0    # Kaç tane like puanı verildi (20'lik dilimler)
+like_points_given = 0
 supporters = {}
 scores = [0] * PLAYER_COUNT
 tiktok_client = None
@@ -155,7 +147,6 @@ def _extract_avatar(user) -> str | None:
             for v in obj.values():
                 walk(v, depth+1)
             return
-        # object
         for meth in ("model_dump", "dict", "as_dict", "to_dict"):
             fn = getattr(obj, meth, None)
             if callable(fn):
@@ -176,10 +167,8 @@ def _extract_avatar(user) -> str | None:
 
     walk(user)
 
-    # unique_id ilə fallback CDN (bəzən işləyir)
     if not found:
         uid = getattr(user, "unique_id", None) or getattr(user, "uniqueId", None)
-        # skip unreliable CDN guess
 
     for u in found:
         if isinstance(u, str) and u.startswith("http"):
@@ -193,7 +182,6 @@ def _extract_avatar(user) -> str | None:
         except Exception as e:
             print("[Avatar debug]", e)
     return None
-
 
 
 async def on_gift(event: GiftEvent):
@@ -220,7 +208,6 @@ async def on_gift(event: GiftEvent):
         except Exception:
             count = 1
 
-        # Streak: yalnız bitmiş streak və ya qeyri-streak gift xal versin
         gift_type = getattr(gift, "type", None)
         streakable = bool(getattr(gift, "streakable", False) or gift_type == 1)
         streaking = bool(getattr(event, "streaking", False))
@@ -232,7 +219,6 @@ async def on_gift(event: GiftEvent):
         except Exception:
             repeat_end = 1 if repeat_end else 0
 
-        # davam edən streak (son deyil) — yalnız log
         is_mid_streak = streakable and streaking and not repeat_end
 
         streak_tag = " [streak]" if is_mid_streak else (" [end]" if (streakable and not streaking) else "")
@@ -283,7 +269,6 @@ async def on_like(event: LikeEvent):
     """Her 20 like → Azerbaycan'a (Player 0) +1 puan + isim/avatar göster"""
     global total_likes, like_points_given
     try:
-        # Yeni TikTokLive: event.count / event.total
         amount = getattr(event, "count", None)
         if amount is None:
             amount = getattr(event, "total", None)
@@ -302,7 +287,6 @@ async def on_like(event: LikeEvent):
         except Exception:
             room_total = total_likes
 
-        # Like atan kişinin isim + avatar
         username = "user"
         avatar = None
         if getattr(event, "user", None) is not None:
@@ -311,7 +295,6 @@ async def on_like(event: LikeEvent):
                         or "user")
             avatar = _extract_avatar(event.user)
 
-        # Frontend'e like bilgisi gönder
         await broadcast({
             "type": "like",
             "amount": amount,
@@ -319,7 +302,6 @@ async def on_like(event: LikeEvent):
             "username": username
         })
 
-        # Her 20 like'da Azerbaycan'a 1 puan ver + isim/avatar göster
         should_have = total_likes // LIKE_EVERY
         new_points = should_have - like_points_given
         if new_points > 0:
@@ -343,9 +325,7 @@ async def on_like(event: LikeEvent):
             })
             await broadcast_top()
     except Exception:
-        # Heç bir xəta konsola yazılmasın
         pass
-
 
 
 async def on_follow(event: FollowEvent):
@@ -359,12 +339,11 @@ async def on_follow(event: FollowEvent):
                         or "user")
             avatar = _extract_avatar(event.user)
 
-        pid = TURKEY_PLAYER  # Her zaman Türkiye (ARDA)
+        pid = TURKEY_PLAYER
         scores[pid] += FOLLOW_POINTS
         print(f"[Follow] @{username} → Türkiye +{FOLLOW_POINTS} puan (toplam: {scores[pid]})")
 
         await broadcast({"type": "follow", "username": username})
-        # Gift gibi gönder ki isim + avatar oyuncuda görünsün
         await broadcast({
             "type": "gift",
             "username": username,
@@ -485,7 +464,6 @@ async def start_tiktok(username: str):
 
     tiktok_client = client
     try:
-        # Non-blocking start; returns Task
         task = await client.start(fetch_live_check=False, fetch_gift_info=True)
         tiktok_task = task
         print(f"[TikTok] start() OK @{username}")
@@ -539,7 +517,6 @@ async def ws_handler(request):
                     await broadcast({"type": "status", "message": "Test rejimi", "connected": False})
 
             elif t == "gift":
-                # test gift from UI
                 pid = int(data.get("player_id", 0)) % PLAYER_COUNT
                 points = int(data.get("points", GIFT_POINTS))
                 username = data.get("username", "test")

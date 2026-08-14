@@ -35,6 +35,19 @@ jobs:
       - name: Install buildozer & cython
         run: pip install --upgrade buildozer cython==0.29.36 virtualenv
 
+      - name: EulerApiSdk yapisini kontrol et
+        run: |
+          python3 -m pip install EulerApiSdk==0.1.1
+          python3 -c "
+          import EulerApiSdk, os
+          base = os.path.dirname(EulerApiSdk.__file__)
+          print('EulerApiSdk yolu:', base)
+          for root, dirs, files in os.walk(os.path.join(base, 'api')):
+              rel = os.path.relpath(root, base)
+              has_init = '__init__.py' in files
+              print(f'{rel}  -> __init__.py var mi: {has_init}')
+          "
+
       # ArtemSBulgakov/buildozer-action@v1 KULLANMIYORUZ: bu action kendi
       # Docker imajını (ghcr.io/kivy/buildozer:latest) çekiyor ve o imaj
       # zaman zaman Ubuntu'nun henüz yayınlanmamış/deneysel sürümüne

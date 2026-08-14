@@ -19,25 +19,24 @@ import aiohttp
 
 try:
     import EulerApiSdk.api.tik_tok_live as _euler_ttl
-    if not hasattr(_euler_ttl, "sign_webcast_url"):
-        # Bu build ortamındaki EulerApiSdk sürümünde sign_webcast_url hiç yok.
-        # TikTokLive'ın asıl imzalama kodu (TikTokSigner.webcast_sign) bunu
-        # zaten kullanmıyor, kendi httpx isteğini atıyor — bu isim sadece
-        # modül import edilirken var olsun diye lazım. Zararsız bir
-        # placeholder koyup importun patlamasını engelliyoruz.
-        class _SignWebcastUrlPlaceholder:
-            pass
-        _euler_ttl.sign_webcast_url = _SignWebcastUrlPlaceholder
-        print("[DEBUG] sign_webcast_url placeholder ile dolduruldu")
+
+    # Bu build ortamındaki EulerApiSdk sürümü eksik/farklı — TikTokLive'ın
+    # import etmeye çalıştığı isimler (sign_webcast_url, fetch_webcast_url vb.)
+    # burada olmayabilir. TikTokLive'ın asıl imzalama kodu (TikTokSigner.
+    # webcast_sign) bunları zaten kullanmıyor, kendi httpx isteğini atıyor —
+    # bu isimler sadece modül import edilirken var olsun diye lazım.
+    # Hangi ismin isteneceğini tek tek bulmak yerine, eksik olan HER ismi
+    # otomatik olarak zararsız bir placeholder ile karşılıyoruz.
+    def _euler_ttl_getattr(name):
+        placeholder = type(name, (), {})
+        setattr(_euler_ttl, name, placeholder)
+        print(f"[DEBUG] EulerApiSdk placeholder üretildi: {name}")
+        return placeholder
+
+    _euler_ttl.__getattr__ = _euler_ttl_getattr
+    print("[DEBUG] EulerApiSdk.api.tik_tok_live için otomatik placeholder aktif")
 except Exception as e:
     print("[DEBUG] EulerApiSdk.api.tik_tok_live import edilemedi:", type(e).__name__, e)
-
-try:
-    import EulerApiSdk
-    print("[DEBUG] EulerApiSdk sürümü:", getattr(EulerApiSdk, "__version__", "bilinmiyor"))
-    print("[DEBUG] EulerApiSdk konumu:", getattr(EulerApiSdk, "__file__", "?"))
-except Exception as e:
-    print("[DEBUG] EulerApiSdk hiç import edilemedi:", e)
 
 try:
     from TikTokLive import TikTokLiveClient

@@ -19,13 +19,16 @@ import aiohttp
 
 try:
     import EulerApiSdk.api.tik_tok_live as _euler_ttl
-    print("[DEBUG] EulerApiSdk.api.tik_tok_live içeriği:", [n for n in dir(_euler_ttl) if not n.startswith("_")])
-    import pkgutil
-    try:
-        _submods = [m.name for m in pkgutil.iter_modules(_euler_ttl.__path__)]
-        print("[DEBUG] EulerApiSdk.api.tik_tok_live ALT MODÜLLERİ:", _submods)
-    except Exception as e2:
-        print("[DEBUG] pkgutil.iter_modules hata:", type(e2).__name__, e2)
+    if not hasattr(_euler_ttl, "sign_webcast_url"):
+        # Bu build ortamındaki EulerApiSdk sürümünde sign_webcast_url hiç yok.
+        # TikTokLive'ın asıl imzalama kodu (TikTokSigner.webcast_sign) bunu
+        # zaten kullanmıyor, kendi httpx isteğini atıyor — bu isim sadece
+        # modül import edilirken var olsun diye lazım. Zararsız bir
+        # placeholder koyup importun patlamasını engelliyoruz.
+        class _SignWebcastUrlPlaceholder:
+            pass
+        _euler_ttl.sign_webcast_url = _SignWebcastUrlPlaceholder
+        print("[DEBUG] sign_webcast_url placeholder ile dolduruldu")
 except Exception as e:
     print("[DEBUG] EulerApiSdk.api.tik_tok_live import edilemedi:", type(e).__name__, e)
 

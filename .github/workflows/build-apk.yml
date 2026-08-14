@@ -1,33 +1,38 @@
 name: Build APK
 
 on:
+
   push:
     branches:
       - main
 
   workflow_dispatch:
 
+
 jobs:
 
   build:
 
+    name: Build Android APK
+
     runs-on: ubuntu-22.04
 
-    timeout-minutes: 60
+    timeout-minutes: 90
+
 
     steps:
 
-      # ========================================================
+      # ======================================================
       # CHECKOUT
-      # ========================================================
+      # ======================================================
 
       - name: Checkout
         uses: actions/checkout@v4
 
 
-      # ========================================================
+      # ======================================================
       # PYTHON
-      # ========================================================
+      # ======================================================
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -36,9 +41,9 @@ jobs:
           python-version: "3.11"
 
 
-      # ========================================================
+      # ======================================================
       # JAVA
-      # ========================================================
+      # ======================================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -48,9 +53,9 @@ jobs:
           java-version: "17"
 
 
-      # ========================================================
-      # SYSTEM
-      # ========================================================
+      # ======================================================
+      # SYSTEM PACKAGES
+      # ======================================================
 
       - name: Install system packages
         run: |
@@ -75,14 +80,14 @@ jobs:
             libtinfo5
 
 
-      # ========================================================
-      # BUILDOZER
-      # ========================================================
+      # ======================================================
+      # BUILD TOOLS
+      # ======================================================
 
       - name: Install Buildozer
         run: |
 
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
 
           python -m pip install \
             buildozer \
@@ -90,70 +95,44 @@ jobs:
             virtualenv
 
 
-      # ========================================================
-      # VERIFY VERSIONS
-      # ========================================================
+      # ======================================================
+      # INSTALL EXACT PYTHON VERSIONS
+      # ======================================================
 
-      - name: Verify Python packages
+      - name: Install Python dependencies
         run: |
 
           python -m pip install \
             "TikTokLive==6.6.5" \
             "EulerApiSdk==0.0.3"
 
-          python - <<'PY'
 
-          import sys
-          import importlib.metadata as metadata
+      # ======================================================
+      # VERIFY EULER
+      # ======================================================
 
-          print("=" * 70)
-          print("PYTHON")
-          print("=" * 70)
-
-          print(sys.version)
-
-          print()
-          print(
-              "TikTokLive:",
-              metadata.version("TikTokLive")
-          )
-
-          print(
-              "EulerApiSdk:",
-              metadata.version("EulerApiSdk")
-          )
-
-          print(
-              "TikTokLiveProto:",
-              metadata.version("TikTokLiveProto")
-          )
-
-          print(
-              "betterproto2:",
-              metadata.version("betterproto2")
-          )
-
-          print("=" * 70)
-
-          PY
-
-
-      # ========================================================
-      # TEST EULER COMPATIBILITY
-      # ========================================================
-
-      - name: Test Euler compatibility
+      - name: Verify EulerApiSdk
         run: |
 
           python - <<'PY'
 
-          from EulerApiSdk.api.tik_tok_live import (
-              sign_webcast_url
+          import importlib.metadata as metadata
+          import inspect
+
+          from EulerApiSdk.api.tik_tok_live import sign_webcast_url
+
+          from EulerApiSdk.models.sign_tik_tok_url_body import (
+              SignTikTokUrlBody
           )
 
           print("=" * 70)
-          print("Euler compatibility test")
+          print("EULER SDK")
           print("=" * 70)
+
+          print(
+              "Version:",
+              metadata.version("EulerApiSdk")
+          )
 
           print(
               "sign_webcast_url:",
@@ -161,26 +140,43 @@ jobs:
           )
 
           print(
-              "module:",
-              sign_webcast_url.__name__
+              "asyncio:",
+              inspect.signature(
+                  sign_webcast_url.asyncio
+              )
+          )
+
+          print(
+              "sync:",
+              inspect.signature(
+                  sign_webcast_url.sync
+              )
+          )
+
+          print(
+              "Body:",
+              inspect.signature(
+                  SignTikTokUrlBody
+              )
           )
 
           print("=" * 70)
-          print("EULER COMPATIBILITY OK")
+          print("EULER 0.0.3 OK")
           print("=" * 70)
 
           PY
 
 
-      # ========================================================
-      # TEST TIKTOKLIVE
-      # ========================================================
+      # ======================================================
+      # VERIFY TIKTOKLIVE
+      # ======================================================
 
-      - name: Test TikTokLive import
+      - name: Verify TikTokLive
         run: |
 
           python - <<'PY'
 
+          import importlib.metadata as metadata
           import inspect
 
           from TikTokLive import TikTokLiveClient
@@ -196,8 +192,13 @@ jobs:
           )
 
           print("=" * 70)
-          print("TikTokLive import test")
+          print("TIKTOKLIVE")
           print("=" * 70)
+
+          print(
+              "Version:",
+              metadata.version("TikTokLive")
+          )
 
           print(
               "Client:",
@@ -205,44 +206,32 @@ jobs:
           )
 
           print(
-              "Signature:",
+              "Client signature:",
               inspect.signature(
                   TikTokLiveClient
               )
           )
 
-          print(
-              "ConnectEvent:",
-              ConnectEvent
-          )
-
-          print(
-              "GiftEvent:",
-              GiftEvent
-          )
-
-          print(
-              "LikeEvent:",
-              LikeEvent
-          )
-
-          print(
-              "FollowEvent:",
-              FollowEvent
-          )
+          print("ConnectEvent:", ConnectEvent)
+          print("DisconnectEvent:", DisconnectEvent)
+          print("GiftEvent:", GiftEvent)
+          print("LikeEvent:", LikeEvent)
+          print("FollowEvent:", FollowEvent)
+          print("ShareEvent:", ShareEvent)
+          print("CommentEvent:", CommentEvent)
 
           print("=" * 70)
-          print("TIKTOKLIVE IMPORT OK")
+          print("TIKTOKLIVE 6.6.5 OK")
           print("=" * 70)
 
           PY
 
 
-      # ========================================================
-      # TEST SERVER
-      # ========================================================
+      # ======================================================
+      # VERIFY SERVER
+      # ======================================================
 
-      - name: Test server import
+      - name: Test server
         run: |
 
           python - <<'PY'
@@ -263,16 +252,41 @@ jobs:
                   "TikTokLive import failed"
               )
 
+          app = server.create_app()
+
+          print(
+              "Aiohttp app:",
+              app
+          )
+
           print("=" * 70)
-          print("SERVER IMPORT OK")
+          print("SERVER OK")
           print("=" * 70)
 
           PY
 
 
-      # ========================================================
-      # BUILDOZER
-      # ========================================================
+      # ======================================================
+      # BUILDOZER CACHE
+      # ======================================================
+
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+
+        with:
+          path: |
+            .buildozer
+            ~/.buildozer
+
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+
+      # ======================================================
+      # BUILD APK
+      # ======================================================
 
       - name: Build APK
         run: |
@@ -280,12 +294,12 @@ jobs:
           yes | buildozer android debug
 
 
-      # ========================================================
+      # ======================================================
       # FIND APK
-      # ========================================================
+      # ======================================================
 
       - name: Find APK
-        id: find_apk
+        id: apk
         shell: bash
 
         run: |
@@ -294,7 +308,9 @@ jobs:
 
           if [ -z "$APK_PATH" ]; then
 
-            echo "APK bulunamadı."
+            echo "APK tapılmadı."
+
+            echo "bin contents:"
 
             find bin -type f || true
 
@@ -302,15 +318,15 @@ jobs:
 
           fi
 
-          echo "APK:"
+          echo "APK tapıldı:"
           echo "$APK_PATH"
 
-          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
 
 
-      # ========================================================
-      # UPLOAD
-      # ========================================================
+      # ======================================================
+      # UPLOAD APK
+      # ======================================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -319,4 +335,4 @@ jobs:
 
           name: futbolgiftyarisi-apk
 
-          path: ${{ steps.find_apk.outputs.path }}
+          path: ${{ steps.apk.outputs.apk_path }}

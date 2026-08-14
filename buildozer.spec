@@ -10,7 +10,7 @@ source.include_exts = py,html,js,css,json,png,jpg,jpeg,gif,ttf,otf,ico
 version = 1.0.0
 
 # TikTokLive + aiohttp bağımlılıkları. Sürümleri gerekirse pin'leyin.
-requirements = python3==3.11.9,hostpython3==3.11.9,aiohttp,aiosignal,attrs,multidict,yarl,frozenlist,async-timeout,charset-normalizer,idna,certifi,protobuf,pyee,requests,websocket-client,betterproto,betterproto2==0.9.0,TikTokLive==6.6.5,TikTokLiveProto,EulerApiSdk==0.1.0,httpx,httpcore,h11,anyio,sniffio,protobuf3-to-dict,websockets,ffmpy,mashumaro,typing-extensions,pyjnius,pydantic==2.12.2,pydantic-core==2.41.4,annotated-types,typing-inspection,python-socks,websockets-proxy
+requirements = python3==3.11.9,hostpython3==3.11.9,aiohttp,aiosignal,attrs,multidict,yarl,frozenlist,async-timeout,charset-normalizer,idna,certifi,protobuf,pyee,requests,websocket-client,betterproto,betterproto2==0.9.0,TikTokLive==6.6.6,TikTokLiveProto,EulerApiSdk==0.1.0,httpx,httpcore,h11,anyio,sniffio,protobuf3-to-dict,websockets,ffmpy,mashumaro,typing-extensions,pyjnius,pydantic==2.12.2,pydantic-core==2.41.4,annotated-types,typing-inspection,python-socks,websockets-proxy
 
 # Bu satır, p4a'ya native WebView ile HTML/JS arayüzü göstermesini söyler.
 # main.py arka planda sunucuyu ayağa kaldırır, WebView otomatik olarak

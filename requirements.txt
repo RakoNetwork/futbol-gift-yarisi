@@ -1,7 +1,6 @@
 aiohttp>=3.9,<4
-TikTokLive==6.6.5
 httpx>=0.26,<0.29
-pyee>=9.0.4
+pyee==13.0.1
 ffmpy>=0.3.0
 websockets_proxy==0.1.3
 betterproto==2.0.0b7
@@ -10,3 +9,4 @@ mashumaro>=3.5
 protobuf3-to-dict>=0.1.5
 protobuf>=3.19.4
 EulerApiSdk==0.0.3
+TikTokLive==6.6.5

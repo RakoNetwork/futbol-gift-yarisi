@@ -18,19 +18,18 @@ from aiohttp import web
 import aiohttp
 
 try:
-    from TikTokLive import TikTokLiveClient
-    from TikTokLive.events import (
-        ConnectEvent, DisconnectEvent, GiftEvent,
-        LikeEvent, FollowEvent, ShareEvent, CommentEvent
-    )
-    TIKTOK_AVAILABLE = True
-except Exception as _tiktok_import_error:
-    TIKTOK_AVAILABLE = False
-    TikTokLiveClient = None
-    ConnectEvent = DisconnectEvent = GiftEvent = None
-    LikeEvent = FollowEvent = ShareEvent = CommentEvent = None
-    print(f"[TikTokLive import failed] {type(_tiktok_import_error).__name__}: {_tiktok_import_error}")
+    import EulerApiSdk.api.tik_tok_live as _euler_ttl
+    print("[DEBUG] EulerApiSdk.api.tik_tok_live içeriği:", [n for n in dir(_euler_ttl) if not n.startswith("_")])
+except Exception as e:
+    print("[DEBUG] EulerApiSdk.api.tik_tok_live import edilemedi:", type(e).__name__, e)
 
+try:
+    import EulerApiSdk
+    print("[DEBUG] EulerApiSdk sürümü:", getattr(EulerApiSdk, "__version__", "bilinmiyor"))
+except Exception as e:
+    print("[DEBUG] EulerApiSdk hiç import edilemedi:", e)
+
+try:
     from TikTokLive import TikTokLiveClient
     from TikTokLive.events import (
         ConnectEvent, DisconnectEvent, GiftEvent,

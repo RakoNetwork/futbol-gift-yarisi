@@ -3,55 +3,48 @@ name: Build APK
 on:
   push:
     branches: [ main ]
-
   workflow_dispatch: {}
 
 jobs:
-
   build:
-
     runs-on: ubuntu-22.04
 
     steps:
+      # ============================================================
+      # SOURCE
+      # ============================================================
 
-      # ======================================================
-      # CHECKOUT
-      # ======================================================
-
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
 
-      # ======================================================
+      # ============================================================
       # PYTHON
-      # ======================================================
+      # ============================================================
 
       - name: Set up Python
         uses: actions/setup-python@v5
-
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
 
-      # ======================================================
+      # ============================================================
       # JAVA
-      # ======================================================
+      # ============================================================
 
       - name: Set up JDK
         uses: actions/setup-java@v4
-
         with:
-          distribution: "temurin"
-          java-version: "17"
+          distribution: 'temurin'
+          java-version: '17'
 
 
-      # ======================================================
+      # ============================================================
       # SYSTEM DEPENDENCIES
-      # ======================================================
+      # ============================================================
 
       - name: Install system dependencies
         run: |
-
           sudo apt-get update
 
           sudo apt-get install -y \
@@ -60,6 +53,7 @@ jobs:
             unzip \
             python3-pip \
             autoconf \
+            automake \
             libtool \
             pkg-config \
             zlib1g-dev \
@@ -72,13 +66,12 @@ jobs:
             build-essential
 
 
-      # ======================================================
-      # BUILD TOOLS
-      # ======================================================
+      # ============================================================
+      # BUILDOZER
+      # ============================================================
 
       - name: Install Buildozer and Cython
         run: |
-
           python -m pip install --upgrade pip
 
           python -m pip install \
@@ -87,26 +80,42 @@ jobs:
             virtualenv
 
 
-      # ======================================================
-      # CHECK TIKTOKLIVE / EULER
-      # ======================================================
+      # ============================================================
+      # TIKTOKLIVE + EULER API SDK
+      # ============================================================
 
-      - name: Check TikTokLive and EulerApiSdk
+      - name: Install TikTokLive and EulerApiSdk
         run: |
-
           python -m pip install \
             TikTokLive==6.6.5 \
             EulerApiSdk==0.1.1
 
+
+      # ============================================================
+      # CHECK PYTHON PACKAGES
+      # ============================================================
+
+      - name: Check installed versions
+        run: |
           python - <<'PY'
           import sys
+          import os
+
           import TikTokLive
           import EulerApiSdk
 
+          print("=" * 70)
+          print("PYTHON")
+          print("=" * 70)
+
           print("Python:", sys.version)
 
+          print()
+          print("TikTokLive:")
+          print("  module:", TikTokLive)
+          print("  path:", getattr(TikTokLive, "__file__", "unknown"))
           print(
-              "TikTokLive:",
+              "  version:",
               getattr(
                   TikTokLive,
                   "__version__",
@@ -114,17 +123,12 @@ jobs:
               )
           )
 
+          print()
+          print("EulerApiSdk:")
+          print("  module:", EulerApiSdk)
+          print("  path:", getattr(EulerApiSdk, "__file__", "unknown"))
           print(
-              "TikTokLive path:",
-              getattr(
-                  TikTokLive,
-                  "__file__",
-                  "unknown"
-              )
-          )
-
-          print(
-              "EulerApiSdk:",
+              "  version:",
               getattr(
                   EulerApiSdk,
                   "__version__",
@@ -132,25 +136,164 @@ jobs:
               )
           )
 
-          print(
-              "EulerApiSdk path:",
-              getattr(
-                  EulerApiSdk,
-                  "__file__",
-                  "unknown"
-              )
+          print("=" * 70)
+          PY
+
+
+      # ============================================================
+      # INSPECT EULER API SDK
+      #
+      # Burada artık build'i durdurmuyoruz.
+      #
+      # Amaç:
+      # EulerApiSdk 0.1.1'in gerçek dosya yapısını görmek.
+      # Özellikle:
+      #
+      # tik_tok_live
+      # fetch_webcast_url
+      #
+      # gerçekten hangi dosyada bulunuyor bunu tespit etmek.
+      # ============================================================
+
+      - name: Inspect EulerApiSdk structure
+        run: |
+          python - <<'PY'
+          import os
+          import EulerApiSdk
+
+          base = os.path.dirname(
+              EulerApiSdk.__file__
           )
+
+          print()
+          print("=" * 70)
+          print("EULER API SDK STRUCTURE")
+          print("=" * 70)
+
+          print("EulerApiSdk base:")
+          print(base)
+
+          print()
+
+          for root, dirs, files in os.walk(base):
+
+              rel = os.path.relpath(
+                  root,
+                  base
+              )
+
+              print()
+              print("[DIR]", rel)
+
+              for filename in sorted(files):
+
+                  print(
+                      "   ",
+                      filename
+                  )
+
+          print()
+          print("=" * 70)
+          print("SEARCH: fetch_webcast_url")
+          print("=" * 70)
+
+          found = []
+
+          for root, dirs, files in os.walk(base):
+
+              for filename in files:
+
+                  path = os.path.join(
+                      root,
+                      filename
+                  )
+
+                  try:
+
+                      with open(
+                          path,
+                          "r",
+                          encoding="utf-8",
+                          errors="ignore"
+                      ) as f:
+
+                          text = f.read()
+
+                      if (
+                          "fetch_webcast_url"
+                          in text
+                      ):
+
+                          found.append(path)
+
+                          print(
+                              "FOUND:",
+                              path
+                          )
+
+                  except Exception:
+                      pass
+
+          if not found:
+
+              print(
+                  "fetch_webcast_url metni "
+                  "paket dosyalarında bulunamadı."
+              )
+
+          print()
+          print("=" * 70)
+          print("IMPORT TEST")
+          print("=" * 70)
 
           try:
 
-              from EulerApiSdk.api.tik_tok_live import fetch_webcast_url
+              import EulerApiSdk.api.tik_tok_live as ttl
 
               print(
-                  "fetch_webcast_url: OK"
+                  "tik_tok_live module:",
+                  getattr(
+                      ttl,
+                      "__file__",
+                      "unknown"
+                  )
               )
 
               print(
-                  "fetch_webcast_url module:",
+                  "tik_tok_live attributes:"
+              )
+
+              for name in sorted(
+                  x
+                  for x in dir(ttl)
+                  if not x.startswith("_")
+              ):
+
+                  print(
+                      "   ",
+                      name
+                  )
+
+          except Exception as e:
+
+              print(
+                  "tik_tok_live import error:",
+                  type(e).__name__,
+                  str(e)
+              )
+
+          try:
+
+              from EulerApiSdk.api.tik_tok_live import (
+                  fetch_webcast_url
+              )
+
+              print(
+                  "DIRECT IMPORT: OK"
+              )
+
+              print(
+                  "module:",
                   getattr(
                       fetch_webcast_url,
                       "__file__",
@@ -161,54 +304,100 @@ jobs:
           except Exception as e:
 
               print(
-                  "fetch_webcast_url ERROR:",
+                  "DIRECT IMPORT: FAILED"
+              )
+
+              print(
+                  "error:",
                   type(e).__name__,
                   str(e)
               )
 
-              raise
+          try:
+
+              import importlib
+
+              module = importlib.import_module(
+                  "EulerApiSdk.api.tik_tok_live.fetch_webcast_url"
+              )
+
+              print(
+                  "SUBMODULE IMPORT: OK"
+              )
+
+              print(
+                  "module:",
+                  getattr(
+                      module,
+                      "__file__",
+                      "unknown"
+                  )
+              )
+
+              print(
+                  "attributes:",
+                  [
+                      x
+                      for x in dir(module)
+                      if not x.startswith("_")
+                  ]
+              )
+
+          except Exception as e:
+
+              print(
+                  "SUBMODULE IMPORT: FAILED"
+              )
+
+              print(
+                  "error:",
+                  type(e).__name__,
+                  str(e)
+              )
+
+          print()
+          print("=" * 70)
+          print("END EULER INSPECTION")
+          print("=" * 70)
           PY
 
 
-      # ======================================================
-      # BUILD APK
-      # ======================================================
+      # ============================================================
+      # BUILDOZER BUILD
+      # ============================================================
 
       - name: Build APK with Buildozer
         run: |
-
           yes | buildozer android debug
 
 
-      # ======================================================
+      # ============================================================
       # FIND APK
-      # ======================================================
+      # ============================================================
 
-      - name: Find APK path
+      - name: Find APK
         id: find_apk
-
+        shell: bash
         run: |
-
           APK_PATH="$(find bin -type f -name '*.apk' | head -n 1)"
 
           if [ -z "$APK_PATH" ]; then
             echo "APK bulunamadı."
-            find . -maxdepth 4 -type f
             exit 1
           fi
 
-          echo "APK: $APK_PATH"
+          echo "APK bulundu:"
+          echo "$APK_PATH"
 
           echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
 
 
-      # ======================================================
+      # ============================================================
       # UPLOAD APK
-      # ======================================================
+      # ============================================================
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
-
         with:
           name: futbolgiftyarisi-apk
           path: ${{ steps.find_apk.outputs.path }}

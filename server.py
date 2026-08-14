@@ -34,12 +34,11 @@ CommentEvent = None
 
 def prepare_euler_sdk():
     """
-    TikTokLive 6.6.5 için EulerApiSdk kontrolü.
+    TikTokLive 6.6.5 üçün EulerApiSdk yoxlaması.
 
-    Burada SAHTE fetch_webcast_url oluşturulmuyor.
+    DÜZGÜN Euler modulu:
 
-    Önce gerçek EulerApiSdk modülünün import edilmesi denenir.
-    Android/p4a paketinde eksikse bunun açıkça loglanması sağlanır.
+        EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url
     """
 
     try:
@@ -56,60 +55,39 @@ def prepare_euler_sdk():
             version
         )
 
-        try:
-            import EulerApiSdk.api.tik_tok_live as ttl
+        # ========================================================
+        # DOĞRU MODUL
+        # ========================================================
 
-            print(
-                "[Euler] tik_tok_live:",
-                getattr(
-                    ttl,
-                    "__file__",
-                    "unknown"
-                )
-            )
-
-        except Exception as e:
-
-            print(
-                "[Euler] tik_tok_live import failed:",
-                type(e).__name__,
-                str(e)
-            )
-
-            return False
-
-        # TikTokLive'in beklediği export mevcut mu?
-        if hasattr(
-            ttl,
-            "fetch_webcast_url"
-        ):
-
-            print(
-                "[Euler] fetch_webcast_url: OK"
-            )
-
-            return True
-
-        print(
-            "[Euler] WARNING: "
-            "fetch_webcast_url export bulunamadı"
+        from EulerApiSdk.api.tik_tok_live_rooms import (
+            fetch_webcast_url
         )
 
         print(
-            "[Euler] tik_tok_live attrs:",
-            [
-                x
-                for x in dir(ttl)
-                if not x.startswith("_")
-            ]
+            "[Euler] "
+            "EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url: OK"
         )
 
-        return False
+        print(
+            "[Euler] fetch_webcast_url:",
+            fetch_webcast_url
+        )
+
+        print(
+            "[Euler] fetch_webcast_url module:",
+            getattr(
+                fetch_webcast_url,
+                "__module__",
+                "unknown"
+            )
+        )
+
+        return True
 
     except Exception as e:
 
         print(
-            "[Euler] import failed:",
+            "[Euler] fetch_webcast_url import failed:",
             type(e).__name__,
             str(e)
         )

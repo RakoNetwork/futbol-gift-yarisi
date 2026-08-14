@@ -31,37 +31,50 @@ FollowEvent = None
 ShareEvent = None
 CommentEvent = None
 
+fetch_webcast_url = None
+
+
+# ============================================================
+# EulerApiSdk
+# ============================================================
 
 def prepare_euler_sdk():
     """
-    TikTokLive 6.6.5 üçün EulerApiSdk yoxlaması.
-
-    DÜZGÜN Euler modulu:
+    EulerApiSdk istifadə edir:
 
         EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url
+
+    Bu funksiya TikTokLive üçün webcast URL əldə etmək
+    məqsədilə istifadə olunur.
     """
+
+    global fetch_webcast_url
 
     try:
         import EulerApiSdk
 
-        version = getattr(
-            EulerApiSdk,
-            "__version__",
-            "unknown"
+        print(
+            "[Euler] EulerApiSdk import OK"
         )
 
         print(
-            "[Euler] EulerApiSdk:",
-            version
+            "[Euler] version:",
+            getattr(
+                EulerApiSdk,
+                "__version__",
+                "unknown"
+            )
         )
 
-        # ========================================================
-        # DOĞRU MODUL
-        # ========================================================
+        # ----------------------------------------------------
+        # ƏSAS MODUL
+        # ----------------------------------------------------
 
         from EulerApiSdk.api.tik_tok_live_rooms import (
-            fetch_webcast_url
+            fetch_webcast_url as _fetch_webcast_url
         )
+
+        fetch_webcast_url = _fetch_webcast_url
 
         print(
             "[Euler] "
@@ -69,12 +82,12 @@ def prepare_euler_sdk():
         )
 
         print(
-            "[Euler] fetch_webcast_url:",
+            "[Euler] function:",
             fetch_webcast_url
         )
 
         print(
-            "[Euler] fetch_webcast_url module:",
+            "[Euler] module:",
             getattr(
                 fetch_webcast_url,
                 "__module__",
@@ -86,8 +99,14 @@ def prepare_euler_sdk():
 
     except Exception as e:
 
+        fetch_webcast_url = None
+
         print(
-            "[Euler] fetch_webcast_url import failed:",
+            "[Euler] fetch_webcast_url import failed:"
+        )
+
+        print(
+            "        ",
             type(e).__name__,
             str(e)
         )
@@ -95,15 +114,12 @@ def prepare_euler_sdk():
         return False
 
 
-# ============================================================
-# Euler kontrolü
-# ============================================================
-
+# Euler-i hazırla
 EULER_AVAILABLE = prepare_euler_sdk()
 
 
 # ============================================================
-# TikTokLive
+# TikTokLive import
 # ============================================================
 
 try:
@@ -141,9 +157,8 @@ except Exception as e:
     CommentEvent = None
 
     print(
-        "[TikTokLive import failed]",
+        "[TikTokLive] import failed:",
         type(e).__name__,
-        ":",
         str(e)
     )
 
@@ -194,21 +209,26 @@ GIFT_MAP = {
 
 
 GIFT_POINTS = 1
+
 FOLLOW_POINTS = 2
+
 LIKE_POINTS = 1
+
 LIKE_EVERY = 20
 
 AZERBAIJAN_PLAYER = 0
+
 TURKEY_PLAYER = 1
 
 
 # ============================================================
-# State
+# STATE
 # ============================================================
 
 clients = set()
 
 total_likes = 0
+
 like_points_given = 0
 
 supporters = {}
@@ -216,6 +236,7 @@ supporters = {}
 scores = [0] * PLAYER_COUNT
 
 tiktok_client = None
+
 tiktok_task = None
 
 current_user = ""
@@ -224,7 +245,7 @@ ROOT = Path(__file__).parent.resolve()
 
 
 # ============================================================
-# Broadcast
+# BROADCAST
 # ============================================================
 
 async def broadcast(data: dict):
@@ -232,30 +253,47 @@ async def broadcast(data: dict):
     if not clients:
         return
 
-    msg = json.dumps(
-        data,
-        ensure_ascii=False
-    )
+    try:
+
+        msg = json.dumps(
+            data,
+            ensure_ascii=False
+        )
+
+    except Exception as e:
+
+        print(
+            "[Broadcast] JSON error:",
+            e
+        )
+
+        return
 
     dead = []
 
     for ws in list(clients):
 
         try:
+
             await ws.send_str(msg)
 
         except Exception:
+
             dead.append(ws)
 
     for ws in dead:
+
         clients.discard(ws)
 
 
 async def broadcast_scores():
 
     await broadcast({
+
         "type": "scores",
+
         "scores": scores[:]
+
     })
 
 
@@ -268,19 +306,24 @@ async def broadcast_top():
     )[:3]
 
     await broadcast({
+
         "type": "top_supporters",
+
         "list": [
+
             {
                 "username": username,
                 "coins": coins
             }
+
             for username, coins in top
         ]
+
     })
 
 
 # ============================================================
-# Avatar
+# AVATAR
 # ============================================================
 
 _avatar_debug_done = False
@@ -297,7 +340,10 @@ def _extract_avatar(user) -> str | None:
 
     def walk(obj, depth=0):
 
-        if obj is None or depth > 5:
+        if obj is None:
+            return
+
+        if depth > 5:
             return
 
         if isinstance(obj, str):
@@ -305,15 +351,16 @@ def _extract_avatar(user) -> str | None:
             if (
                 obj.startswith("http")
                 and (
-                    "tiktok" in obj
-                    or "byteoversea" in obj
-                    or "avt" in obj
-                    or "avatar" in obj
-                    or "webp" in obj
-                    or "jpeg" in obj
-                    or "png" in obj
+                    "tiktok" in obj.lower()
+                    or "byteoversea" in obj.lower()
+                    or "avt" in obj.lower()
+                    or "avatar" in obj.lower()
+                    or "webp" in obj.lower()
+                    or "jpeg" in obj.lower()
+                    or "png" in obj.lower()
                 )
             ):
+
                 found.append(obj)
 
             return
@@ -321,6 +368,7 @@ def _extract_avatar(user) -> str | None:
         if isinstance(obj, (list, tuple)):
 
             for x in obj[:8]:
+
                 walk(
                     x,
                     depth + 1
@@ -331,6 +379,7 @@ def _extract_avatar(user) -> str | None:
         if isinstance(obj, dict):
 
             for v in obj.values():
+
                 walk(
                     v,
                     depth + 1
@@ -363,6 +412,7 @@ def _extract_avatar(user) -> str | None:
                     return
 
                 except Exception:
+
                     pass
 
         d = getattr(
@@ -374,6 +424,7 @@ def _extract_avatar(user) -> str | None:
         if isinstance(d, dict):
 
             for v in d.values():
+
                 walk(
                     v,
                     depth + 1
@@ -403,6 +454,7 @@ def _extract_avatar(user) -> str | None:
                 )
 
             except Exception:
+
                 pass
 
     walk(user)
@@ -413,6 +465,7 @@ def _extract_avatar(user) -> str | None:
             isinstance(url, str)
             and url.startswith("http")
         ):
+
             return url
 
     if not _avatar_debug_done:
@@ -450,7 +503,7 @@ def _extract_avatar(user) -> str | None:
 
 
 # ============================================================
-# TikTok Events
+# TIKTOK EVENTS
 # ============================================================
 
 async def on_connect(event):
@@ -474,10 +527,16 @@ async def on_connect(event):
     )
 
     await broadcast({
+
         "type": "status",
-        "message": f"LIVE @{unique_id}",
+
+        "message":
+            f"LIVE @{unique_id}",
+
         "connected": True,
+
         "username": unique_id
+
     })
 
 
@@ -488,11 +547,20 @@ async def on_disconnect(event):
     )
 
     await broadcast({
+
         "type": "status",
-        "message": "TikTok disconnected",
+
+        "message":
+            "TikTok disconnected",
+
         "connected": False
+
     })
 
+
+# ============================================================
+# GIFT
+# ============================================================
 
 async def on_gift(event):
 
@@ -514,22 +582,27 @@ async def on_gift(event):
         )
 
         username = "user"
+
         avatar = None
 
         if user is not None:
 
             username = (
+
                 getattr(
                     user,
                     "nickname",
                     None
                 )
+
                 or getattr(
                     user,
                     "unique_id",
                     None
                 )
+
                 or "user"
+
             )
 
             avatar = _extract_avatar(
@@ -537,48 +610,63 @@ async def on_gift(event):
             )
 
         gift_name = (
+
             getattr(
                 gift,
                 "name",
                 None
             )
+
             or "?"
+
         ).strip()
 
         coins = (
+
             getattr(
                 gift,
                 "diamond_count",
                 None
             )
+
             or getattr(
                 gift,
                 "diamondCount",
                 None
             )
+
             or 1
+
         )
 
         count = (
+
             getattr(
                 event,
                 "repeat_count",
                 None
             )
+
             or getattr(
                 event,
                 "repeatCount",
                 None
             )
+
             or 1
+
         )
 
         try:
+
             count = int(count)
+
         except Exception:
+
             count = 1
 
         if count < 1:
+
             count = 1
 
         gift_type = getattr(
@@ -588,20 +676,25 @@ async def on_gift(event):
         )
 
         streakable = bool(
+
             getattr(
                 gift,
                 "streakable",
                 False
             )
+
             or gift_type == 1
+
         )
 
         streaking = bool(
+
             getattr(
                 event,
                 "streaking",
                 False
             )
+
         )
 
         repeat_end = getattr(
@@ -621,26 +714,35 @@ async def on_gift(event):
         try:
 
             repeat_end = (
+
                 int(repeat_end)
+
                 if repeat_end is not None
+
                 else 0
+
             )
 
         except Exception:
 
             repeat_end = (
+
                 1
                 if repeat_end
                 else 0
+
             )
 
         is_mid_streak = (
+
             streakable
             and streaking
             and not repeat_end
+
         )
 
         if is_mid_streak:
+
             return
 
         print(
@@ -651,11 +753,14 @@ async def on_gift(event):
         )
 
         supporters[username] = (
+
             supporters.get(
                 username,
                 0
             )
+
             + coins * count
+
         )
 
         key = gift_name.lower().strip()
@@ -674,18 +779,23 @@ async def on_gift(event):
                 ):
 
                     player_id = pid
+
                     break
 
         if player_id is None:
 
             player_id = (
+
                 abs(hash(username))
                 % PLAYER_COUNT
+
             )
 
         points = (
+
             GIFT_POINTS
             * max(1, count)
+
         )
 
         scores[player_id] += points
@@ -715,6 +825,7 @@ async def on_gift(event):
             "avatar": avatar or "",
 
             "sound": True
+
         })
 
         await broadcast_top()
@@ -727,6 +838,10 @@ async def on_gift(event):
             str(e)
         )
 
+
+# ============================================================
+# LIKE
+# ============================================================
 
 async def on_like(event):
 
@@ -758,6 +873,7 @@ async def on_like(event):
             amount = 1
 
         if amount < 1:
+
             amount = 1
 
         total_likes += amount
@@ -771,9 +887,13 @@ async def on_like(event):
         try:
 
             room_total = (
+
                 int(room_total)
+
                 if room_total is not None
+
                 else total_likes
+
             )
 
         except Exception:
@@ -787,22 +907,27 @@ async def on_like(event):
         )
 
         username = "user"
+
         avatar = None
 
         if user is not None:
 
             username = (
+
                 getattr(
                     user,
                     "nickname",
                     None
                 )
+
                 or getattr(
                     user,
                     "unique_id",
                     None
                 )
+
                 or "user"
+
             )
 
             avatar = _extract_avatar(
@@ -818,16 +943,21 @@ async def on_like(event):
             "total": room_total,
 
             "username": username
+
         })
 
         should_have = (
+
             total_likes
             // LIKE_EVERY
+
         )
 
         new_points = (
+
             should_have
             - like_points_given
+
         )
 
         if new_points > 0:
@@ -839,8 +969,10 @@ async def on_like(event):
             scores[
                 AZERBAIJAN_PLAYER
             ] += (
+
                 new_points
                 * LIKE_POINTS
+
             )
 
             await broadcast({
@@ -873,6 +1005,7 @@ async def on_like(event):
                 "sound": True,
 
                 "reason": "like"
+
             })
 
             await broadcast_top()
@@ -886,6 +1019,10 @@ async def on_like(event):
         )
 
 
+# ============================================================
+# FOLLOW
+# ============================================================
+
 async def on_follow(event):
 
     try:
@@ -897,22 +1034,27 @@ async def on_follow(event):
         )
 
         username = "user"
+
         avatar = None
 
         if user is not None:
 
             username = (
+
                 getattr(
                     user,
                     "nickname",
                     None
                 )
+
                 or getattr(
                     user,
                     "unique_id",
                     None
                 )
+
                 or "user"
+
             )
 
             avatar = _extract_avatar(
@@ -928,6 +1070,7 @@ async def on_follow(event):
             "type": "follow",
 
             "username": username
+
         })
 
         await broadcast({
@@ -958,6 +1101,7 @@ async def on_follow(event):
             "sound": True,
 
             "reason": "follow"
+
         })
 
         await broadcast_top()
@@ -970,6 +1114,10 @@ async def on_follow(event):
             str(e)
         )
 
+
+# ============================================================
+# SHARE
+# ============================================================
 
 async def on_share(event):
 
@@ -986,17 +1134,21 @@ async def on_share(event):
         if user is not None:
 
             username = (
+
                 getattr(
                     user,
                     "nickname",
                     None
                 )
+
                 or getattr(
                     user,
                     "unique_id",
                     None
                 )
+
                 or "user"
+
             )
 
         await broadcast({
@@ -1004,6 +1156,7 @@ async def on_share(event):
             "type": "share",
 
             "username": username
+
         })
 
     except Exception as e:
@@ -1014,6 +1167,10 @@ async def on_share(event):
             str(e)
         )
 
+
+# ============================================================
+# COMMENT
+# ============================================================
 
 async def on_comment(event):
 
@@ -1030,18 +1187,28 @@ async def on_comment(event):
         if user is not None:
 
             username = (
+
                 getattr(
                     user,
                     "nickname",
                     None
                 )
+
                 or getattr(
                     user,
                     "unique_id",
                     None
                 )
+
                 or "user"
+
             )
+
+        comment = getattr(
+            event,
+            "comment",
+            ""
+        ) or ""
 
         await broadcast({
 
@@ -1049,13 +1216,8 @@ async def on_comment(event):
 
             "username": username,
 
-            "comment":
-                getattr(
-                    event,
-                    "comment",
-                    ""
-                )
-                or ""
+            "comment": comment
+
         })
 
     except Exception as e:
@@ -1068,7 +1230,7 @@ async def on_comment(event):
 
 
 # ============================================================
-# TikTok connection
+# TIKTOK CONNECTION
 # ============================================================
 
 async def stop_tiktok():
@@ -1080,7 +1242,11 @@ async def stop_tiktok():
 
         try:
 
-            await tiktok_client.disconnect()
+            result = tiktok_client.disconnect()
+
+            if asyncio.iscoroutine(result):
+
+                await result
 
         except Exception as e:
 
@@ -1090,6 +1256,7 @@ async def stop_tiktok():
             )
 
     tiktok_client = None
+
     tiktok_task = None
 
 
@@ -1109,12 +1276,15 @@ async def start_tiktok(username: str):
                 "TikTokLive import edilemedi.",
 
             "connected": False
+
         })
 
         return
 
     username = (
+
         username or ""
+
     ).strip().lstrip("@")
 
     if not username:
@@ -1127,6 +1297,7 @@ async def start_tiktok(username: str):
                 "Username boşdur",
 
             "connected": False
+
         })
 
         return
@@ -1143,15 +1314,24 @@ async def start_tiktok(username: str):
             f"Yoxlanılır @{username} ...",
 
         "connected": False
+
     })
 
     print(
         f"[TikTok] Checking is_live @{username}"
     )
 
+    # --------------------------------------------------------
+    # TikTokLive client
+    # --------------------------------------------------------
+
     client = TikTokLiveClient(
         unique_id=username
     )
+
+    # --------------------------------------------------------
+    # LIVE yoxlaması
+    # --------------------------------------------------------
 
     try:
 
@@ -1178,6 +1358,7 @@ async def start_tiktok(username: str):
             "connected": False,
 
             "error": error
+
         })
 
         return
@@ -1193,6 +1374,7 @@ async def start_tiktok(username: str):
                 f"hazırda LIVE deyil",
 
             "connected": False
+
         })
 
         return
@@ -1206,7 +1388,12 @@ async def start_tiktok(username: str):
             f"qoşulur @{username} ...",
 
         "connected": False
+
     })
+
+    # --------------------------------------------------------
+    # EVENT LISTENERS
+    # --------------------------------------------------------
 
     client.add_listener(
         ConnectEvent,
@@ -1245,6 +1432,10 @@ async def start_tiktok(username: str):
 
     tiktok_client = client
 
+    # --------------------------------------------------------
+    # START
+    # --------------------------------------------------------
+
     try:
 
         task = await client.start(
@@ -1269,6 +1460,7 @@ async def start_tiktok(username: str):
         )
 
         tiktok_client = None
+
         tiktok_task = None
 
         await broadcast({
@@ -1282,11 +1474,12 @@ async def start_tiktok(username: str):
             "connected": False,
 
             "error": error
+
         })
 
 
 # ============================================================
-# WebSocket
+# WEBSOCKET
 # ============================================================
 
 async def ws_handler(request):
@@ -1308,38 +1501,49 @@ async def ws_handler(request):
     )
 
     await ws.send_str(
-        json.dumps({
 
-            "type": "init",
+        json.dumps(
 
-            "scores": scores[:],
+            {
 
-            "total_likes":
-                total_likes,
+                "type": "init",
 
-            "supporters": [
-                {
-                    "username": username,
-                    "coins": coins
-                }
-                for username, coins
-                in sorted(
-                    supporters.items(),
-                    key=lambda x: -x[1]
-                )[:3]
-            ],
+                "scores": scores[:],
 
-            "gift_map":
-                GIFT_MAP,
+                "total_likes":
+                    total_likes,
 
-            "connected":
-                tiktok_client is not None,
+                "supporters": [
 
-            "username":
-                current_user
+                    {
+                        "username": username,
+                        "coins": coins
+                    }
 
-        },
-        ensure_ascii=False)
+                    for username, coins
+
+                    in sorted(
+                        supporters.items(),
+                        key=lambda x: -x[1]
+                    )[:3]
+
+                ],
+
+                "gift_map":
+                    GIFT_MAP,
+
+                "connected":
+                    tiktok_client is not None,
+
+                "username":
+                    current_user
+
+            },
+
+            ensure_ascii=False
+
+        )
+
     )
 
     try:
@@ -1347,6 +1551,7 @@ async def ws_handler(request):
         async for msg in ws:
 
             if msg.type != aiohttp.WSMsgType.TEXT:
+
                 continue
 
             try:
@@ -1363,21 +1568,30 @@ async def ws_handler(request):
                 "type"
             )
 
+            # ------------------------------------------------
+            # SET USER
+            # ------------------------------------------------
+
             if message_type == "set_user":
 
                 username = (
+
                     data.get(
                         "username"
                     )
+
                     or ""
+
                 ).strip().lstrip("@")
 
                 if username:
 
                     asyncio.create_task(
+
                         start_tiktok(
                             username
                         )
+
                     )
 
                 else:
@@ -1392,20 +1606,28 @@ async def ws_handler(request):
                             "Test rejimi",
 
                         "connected": False
+
                     })
+
+            # ------------------------------------------------
+            # TEST GIFT
+            # ------------------------------------------------
 
             elif message_type == "gift":
 
                 try:
 
                     pid = (
+
                         int(
                             data.get(
                                 "player_id",
                                 0
                             )
                         )
+
                         % PLAYER_COUNT
+
                     )
 
                 except Exception:
@@ -1415,10 +1637,12 @@ async def ws_handler(request):
                 try:
 
                     points = int(
+
                         data.get(
                             "points",
                             GIFT_POINTS
                         )
+
                     )
 
                 except Exception:
@@ -1438,10 +1662,12 @@ async def ws_handler(request):
                 try:
 
                     coins = int(
+
                         data.get(
                             "coins",
                             1
                         )
+
                     )
 
                 except Exception:
@@ -1449,11 +1675,14 @@ async def ws_handler(request):
                     coins = 1
 
                 supporters[username] = (
+
                     supporters.get(
                         username,
                         0
                     )
+
                     + coins
+
                 )
 
                 scores[pid] += points
@@ -1484,18 +1713,25 @@ async def ws_handler(request):
                         username,
 
                     "sound": True
+
                 })
 
                 await broadcast_top()
+
+            # ------------------------------------------------
+            # RESET
+            # ------------------------------------------------
 
             elif message_type == "reset_scores":
 
                 for i in range(
                     PLAYER_COUNT
                 ):
+
                     scores[i] = 0
 
                 total_likes = 0
+
                 like_points_given = 0
 
                 await broadcast_scores()
@@ -1519,8 +1755,11 @@ async def ws_handler(request):
 async def index(request):
 
     for filename in (
+
         "football_gift_race_fixed.html",
+
         "index.html"
+
     ):
 
         path = ROOT / filename
@@ -1534,10 +1773,12 @@ async def index(request):
             response.headers[
                 "Cache-Control"
             ] = (
+
                 "no-store, "
                 "no-cache, "
                 "must-revalidate, "
                 "max-age=0"
+
             )
 
             response.headers[
@@ -1547,12 +1788,19 @@ async def index(request):
             return response
 
     return web.Response(
+
         text=
             "football_gift_race_fixed.html "
             "not found",
+
         status=404
+
     )
 
+
+# ============================================================
+# APP
+# ============================================================
 
 def create_app():
 
@@ -1586,7 +1834,7 @@ def create_app():
 
 
 # ============================================================
-# Main
+# MAIN
 # ============================================================
 
 async def main():
@@ -1607,19 +1855,29 @@ async def main():
 
     await site.start()
 
-    print("=" * 50)
+    print("=" * 55)
+
     print(
         " Football Gift Race + TikTok Live"
     )
+
     print(
         f" http://localhost:{PORT}"
     )
-    print("=" * 50)
+
+    print("=" * 55)
 
     print(
         "[Status] EulerApiSdk:",
         "OK"
         if EULER_AVAILABLE
+        else "UNAVAILABLE"
+    )
+
+    print(
+        "[Status] fetch_webcast_url:",
+        "OK"
+        if fetch_webcast_url is not None
         else "UNAVAILABLE"
     )
 
@@ -1630,12 +1888,18 @@ async def main():
         else "UNAVAILABLE"
     )
 
+    print("=" * 55)
+
     while True:
 
         await asyncio.sleep(
             3600
         )
 
+
+# ============================================================
+# RUN
+# ============================================================
 
 if __name__ == "__main__":
 

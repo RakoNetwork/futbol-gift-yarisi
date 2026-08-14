@@ -18,15 +18,51 @@ from aiohttp import web
 import aiohttp
 
 try:
+    import sys
+    import types
+    import importlib.abc
+    import importlib.machinery
+
+    class _EulerApiSdkStubFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+        """EulerApiSdk.api altında gerçekte bulunmayan HERHANGİ bir alt modülü
+        (örn. tik_tok_live_premium) zararsız, boş bir modül olarak üretir.
+        Gerçek imzalama işini TikTokSigner.webcast_sign() zaten kendi httpx
+        isteğiyle yapıyor — bu modüller sadece import edilebilsin diye lazım.
+        Gerçek/var olan alt modüllere (retrieve_webcast_feed vb.) dokunmuyor,
+        çünkü Python önce normal import yollarını dener; bu finder ancak
+        onlar başarısız olursa (sona eklendiği için) devreye girer."""
+
+        PREFIX = "EulerApiSdk.api."
+
+        def find_spec(self, fullname, path, target=None):
+            if fullname.startswith(self.PREFIX):
+                return importlib.machinery.ModuleSpec(fullname, self)
+            return None
+
+        def create_module(self, spec):
+            print(f"[DEBUG] EulerApiSdk stub modül üretildi: {spec.name}")
+            mod = types.ModuleType(spec.name)
+
+            def _stub_getattr(name):
+                placeholder = type(name, (), {})
+                setattr(mod, name, placeholder)
+                print(f"[DEBUG] {spec.name} içine placeholder eklendi: {name}")
+                return placeholder
+
+            mod.__getattr__ = _stub_getattr
+            return mod
+
+        def exec_module(self, module):
+            pass
+
+    sys.meta_path.append(_EulerApiSdkStubFinder())
+    print("[DEBUG] EulerApiSdk.api.* için otomatik stub-modül finder aktif")
+except Exception as e:
+    print("[DEBUG] EulerApiSdk stub finder kurulamadı:", type(e).__name__, e)
+
+try:
     import EulerApiSdk.api.tik_tok_live as _euler_ttl
 
-    # Bu build ortamındaki EulerApiSdk sürümü eksik/farklı — TikTokLive'ın
-    # import etmeye çalıştığı isimler (sign_webcast_url, fetch_webcast_url vb.)
-    # burada olmayabilir. TikTokLive'ın asıl imzalama kodu (TikTokSigner.
-    # webcast_sign) bunları zaten kullanmıyor, kendi httpx isteğini atıyor —
-    # bu isimler sadece modül import edilirken var olsun diye lazım.
-    # Hangi ismin isteneceğini tek tek bulmak yerine, eksik olan HER ismi
-    # otomatik olarak zararsız bir placeholder ile karşılıyoruz.
     def _euler_ttl_getattr(name):
         placeholder = type(name, (), {})
         setattr(_euler_ttl, name, placeholder)

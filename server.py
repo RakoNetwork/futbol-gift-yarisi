@@ -6,8 +6,8 @@ import asyncio
 import json
 from pathlib import Path
 
-from aiohttp import web
 import aiohttp
+from aiohttp import web
 
 
 # ============================================================
@@ -44,19 +44,14 @@ try:
 
     print("=" * 70)
     print("[TikTokLive] IMPORT OK")
-    print("=" * 70)
     print("[TikTokLive] Client:", TikTokLiveClient)
     print("=" * 70)
 
-except Exception as e:
-
+except Exception as exc:
     print("=" * 70)
     print("[TikTokLive] IMPORT FAILED")
-    print(type(e).__name__)
-    print(str(e))
+    print(type(exc).__name__, str(exc))
     print("=" * 70)
-
-    TIKTOK_AVAILABLE = False
 
 
 # ============================================================
@@ -68,7 +63,22 @@ PORT = 8000
 
 PLAYER_COUNT = 7
 
-ROOT = Path(__file__).parent.resolve()
+ROOT = Path(__file__).resolve().parent
+
+
+# ============================================================
+# GAME SETTINGS
+# ============================================================
+
+GIFT_POINTS = 1
+
+FOLLOW_POINTS = 2
+
+LIKE_POINTS = 1
+LIKE_EVERY = 20
+
+AZERBAIJAN_PLAYER = 0
+TURKEY_PLAYER = 1
 
 
 # ============================================================
@@ -105,24 +115,15 @@ GIFT_MAP = {
 }
 
 
-GIFT_POINTS = 1
-FOLLOW_POINTS = 2
-LIKE_POINTS = 1
-LIKE_EVERY = 20
-
-AZERBAIJAN_PLAYER = 0
-TURKEY_PLAYER = 1
-
-
 # ============================================================
-# STATE
+# GLOBAL STATE
 # ============================================================
 
-clients = set()
+clients: set[web.WebSocketResponse] = set()
 
 scores = [0] * PLAYER_COUNT
 
-supporters = {}
+supporters: dict[str, int] = {}
 
 total_likes = 0
 like_points_given = 0
@@ -138,23 +139,20 @@ current_room_id = None
 # BROADCAST
 # ============================================================
 
-async def broadcast(data: dict):
-
+async def broadcast(data: dict) -> None:
     if not clients:
         return
 
     message = json.dumps(
         data,
-        ensure_ascii=False
+        ensure_ascii=False,
     )
 
     dead = []
 
     for ws in list(clients):
-
         try:
             await ws.send_str(message)
-
         except Exception:
             dead.append(ws)
 
@@ -162,101 +160,75 @@ async def broadcast(data: dict):
         clients.discard(ws)
 
 
-async def broadcast_scores():
+async def broadcast_scores() -> None:
+    await broadcast(
+        {
+            "type": "scores",
+            "scores": scores[:],
+        }
+    )
 
-    await broadcast({
-        "type": "scores",
-        "scores": scores[:]
-    })
 
-
-async def broadcast_top():
-
+async def broadcast_top() -> None:
     top = sorted(
         supporters.items(),
         key=lambda item: item[1],
-        reverse=True
+        reverse=True,
     )[:3]
 
-    await broadcast({
-        "type": "top_supporters",
-
-        "list": [
-            {
-                "username": username,
-                "coins": coins
-            }
-
-            for username, coins in top
-        ]
-    })
+    await broadcast(
+        {
+            "type": "top_supporters",
+            "list": [
+                {
+                    "username": username,
+                    "coins": coins,
+                }
+                for username, coins in top
+            ],
+        }
+    )
 
 
 # ============================================================
 # USER HELPERS
 # ============================================================
 
-def get_username(user):
-
+def get_username(user) -> str:
     if user is None:
         return "user"
 
     return (
-        getattr(user, "nickname", None)
-        or getattr(user, "unique_id", None)
+        getattr(user, "unique_id", None)
         or getattr(user, "uniqueId", None)
+        or getattr(user, "nickname", None)
         or "user"
     )
 
 
-def get_avatar(user):
-
+def get_avatar(user) -> str:
     if user is None:
         return ""
 
     candidates = []
 
     def walk(obj, depth=0):
-
-        if obj is None:
-            return
-
-        if depth > 5:
+        if obj is None or depth > 5:
             return
 
         if isinstance(obj, str):
-
             if obj.startswith("http"):
-
-                if any(
-                    x in obj.lower()
-                    for x in (
-                        "tiktok",
-                        "byteoversea",
-                        "avatar",
-                        "avt",
-                        ".webp",
-                        ".jpg",
-                        ".jpeg",
-                        ".png",
-                    )
-                ):
-                    candidates.append(obj)
-
+                candidates.append(obj)
             return
 
         if isinstance(obj, dict):
-
             for value in obj.values():
                 walk(value, depth + 1)
-
             return
 
         if isinstance(obj, (list, tuple)):
-
             for value in obj[:10]:
                 walk(value, depth + 1)
-
             return
 
         for attr in (
@@ -270,45 +242,35 @@ def get_avatar(user):
             "avatar",
             "profile_picture",
         ):
-
             try:
                 walk(
                     getattr(obj, attr, None),
-                    depth + 1
+                    depth + 1,
                 )
-
             except Exception:
                 pass
 
-        data = getattr(
-            obj,
-            "__dict__",
-            None
-        )
+        data = getattr(obj, "__dict__", None)
 
         if isinstance(data, dict):
-
             for value in data.values():
                 walk(value, depth + 1)
 
     walk(user)
 
-    if candidates:
-        return candidates[0]
-
-    return ""
+    return candidates[0] if candidates else ""
 
 
 # ============================================================
-# GIFT PLAYER
+# GIFT -> PLAYER
 # ============================================================
 
-def find_player_for_gift(gift_name: str, username: str):
+def find_player_for_gift(
+    gift_name: str,
+    username: str,
+) -> int:
 
-    key = (
-        gift_name
-        or ""
-    ).lower().strip()
+    key = str(gift_name or "").lower().strip()
 
     player_id = GIFT_MAP.get(key)
 
@@ -316,139 +278,94 @@ def find_player_for_gift(gift_name: str, username: str):
         return player_id
 
     for gift_key, player in GIFT_MAP.items():
-
-        if (
-            gift_key in key
-            or key in gift_key
-        ):
+        if gift_key in key or key in gift_key:
             return player
 
-    return (
-        abs(hash(username))
-        % PLAYER_COUNT
-    )
+    return abs(hash(username)) % PLAYER_COUNT
 
 
 # ============================================================
-# TIKTOK EVENTS
+# CONNECT
 # ============================================================
 
-async def on_connect(event):
+async def on_connect(event) -> None:
 
-    room_id = None
+    room_id = getattr(event, "room_id", None)
 
-    if tiktok_client is not None:
-
+    if room_id is None and tiktok_client is not None:
         room_id = getattr(
             tiktok_client,
             "room_id",
-            None
+            None,
         )
-
-        if room_id is None:
-
-            room_id = getattr(
-                tiktok_client,
-                "roomId",
-                None
-            )
 
     username = getattr(
         event,
         "unique_id",
-        None
-    )
-
-    if not username:
-        username = current_user
+        None,
+    ) or current_user
 
     print(
         f"[TikTok] CONNECTED @{username} "
         f"room={room_id}"
     )
 
-    await broadcast({
-
-        "type": "status",
-
-        "message":
-            f"LIVE @{username}",
-
-        "connected": True,
-
-        "username":
-            username,
-
-        "room_id":
-            room_id
-    })
+    await broadcast(
+        {
+            "type": "status",
+            "message": f"LIVE @{username}",
+            "connected": True,
+            "username": username,
+            "room_id": room_id,
+        }
+    )
 
 
-async def on_disconnect(event):
+# ============================================================
+# DISCONNECT
+# ============================================================
+
+async def on_disconnect(event) -> None:
 
     print("[TikTok] DISCONNECTED")
 
-    await broadcast({
-
-        "type": "status",
-
-        "message":
-            "TikTok disconnected",
-
-        "connected": False
-
-    })
+    await broadcast(
+        {
+            "type": "status",
+            "message": "TikTok disconnected",
+            "connected": False,
+        }
+    )
 
 
-async def on_gift(event):
+# ============================================================
+# GIFT
+# ============================================================
+
+async def on_gift(event) -> None:
 
     try:
 
-        gift = getattr(
-            event,
-            "gift",
-            None
-        )
+        gift = getattr(event, "gift", None)
 
         if gift is None:
             return
 
-        user = getattr(
-            event,
-            "user",
-            None
-        )
+        user = getattr(event, "user", None)
 
         username = get_username(user)
         avatar = get_avatar(user)
 
         gift_name = (
-            getattr(
-                gift,
-                "name",
-                None
-            )
-
+            getattr(gift, "name", None)
             or "Unknown Gift"
         )
 
-        gift_name = str(
-            gift_name
-        ).strip()
+        gift_name = str(gift_name).strip()
 
         coins = (
-            getattr(
-                gift,
-                "diamond_count",
-                None
-            )
-
-            or getattr(
-                gift,
-                "diamondCount",
-                None
-            )
-
+            getattr(gift, "diamond_count", None)
+            or getattr(gift, "diamondCount", None)
             or 1
         )
 
@@ -458,18 +375,8 @@ async def on_gift(event):
             coins = 1
 
         count = (
-            getattr(
-                event,
-                "repeat_count",
-                None
-            )
-
-            or getattr(
-                event,
-                "repeatCount",
-                None
-            )
-
+            getattr(event, "repeat_count", None)
+            or getattr(event, "repeatCount", None)
             or 1
         )
 
@@ -478,167 +385,126 @@ async def on_gift(event):
         except Exception:
             count = 1
 
-        if count < 1:
-            count = 1
+        count = max(1, count)
 
-        # ----------------------------------------------------
+        # ====================================================
         # STREAK
-        # ----------------------------------------------------
+        # ====================================================
 
         gift_type = getattr(
             gift,
             "type",
-            None
-        )
-
-        streakable = bool(
-            getattr(
-                gift,
-                "streakable",
-                False
-            )
-            or gift_type == 1
+            None,
         )
 
         streaking = bool(
             getattr(
                 event,
                 "streaking",
-                False
+                False,
             )
         )
 
         repeat_end = getattr(
             event,
             "repeat_end",
-            None
+            None,
         )
 
-        if repeat_end is None:
-
-            repeat_end = getattr(
-                event,
-                "repeatEnd",
-                None
-            )
-
         try:
-            repeat_end = int(
-                repeat_end
-            )
-
+            repeat_end = int(repeat_end)
         except Exception:
+            repeat_end = 1 if repeat_end else 0
 
-            repeat_end = (
-                1
-                if repeat_end
-                else 0
-            )
-
+        # TikTokLive 6.6.5:
+        # type == 1 => streakable gift
         if (
-            streakable
+            gift_type == 1
             and streaking
             and not repeat_end
         ):
             return
 
-        # ----------------------------------------------------
+        # ====================================================
         # LOG
-        # ----------------------------------------------------
+        # ====================================================
 
         print(
-            f"[Gift] @{username} "
-            f"-> {gift_name} "
-            f"x{count} "
+            f"[Gift] @{username} -> "
+            f"{gift_name} x{count} "
             f"({coins} diamonds)"
         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # SUPPORTER
-        # ----------------------------------------------------
+        # ====================================================
 
         supporters[username] = (
-            supporters.get(
-                username,
-                0
-            )
-            + (
-                coins
-                * count
-            )
+            supporters.get(username, 0)
+            + coins * count
         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # PLAYER
-        # ----------------------------------------------------
+        # ====================================================
 
         player_id = find_player_for_gift(
             gift_name,
-            username
+            username,
         )
 
-        points = (
-            GIFT_POINTS
-            * max(1, count)
-        )
+        points = GIFT_POINTS * count
 
         scores[player_id] += points
 
-        # ----------------------------------------------------
+        # ====================================================
         # FRONTEND
-        # ----------------------------------------------------
+        # ====================================================
 
-        await broadcast({
+        await broadcast(
+            {
+                "type": "gift",
 
-            "type": "gift",
+                "username": username,
 
-            "username":
-                username,
+                "player_name": username,
 
-            "player_name":
-                username,
+                "gift_name": gift_name,
 
-            "gift_name":
-                gift_name,
+                "gift_key": gift_name.lower().strip(),
 
-            "gift_key":
-                gift_name.lower().strip(),
+                "coins": coins,
 
-            "coins":
-                coins,
+                "count": count,
 
-            "count":
-                count,
+                "player_id": player_id,
 
-            "player_id":
-                player_id,
+                "points": points,
 
-            "points":
-                points,
+                "scores": scores[:],
 
-            "scores":
-                scores[:],
+                "avatar": avatar,
 
-            "avatar":
-                avatar,
-
-            "sound":
-                True
-
-        })
+                "sound": True,
+            }
+        )
 
         await broadcast_top()
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[Gift] ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
 
-async def on_like(event):
+# ============================================================
+# LIKE
+# ============================================================
+
+async def on_like(event) -> None:
 
     global total_likes
     global like_points_given
@@ -648,15 +514,14 @@ async def on_like(event):
         amount = getattr(
             event,
             "count",
-            None
+            None,
         )
 
         if amount is None:
-
             amount = getattr(
                 event,
                 "total",
-                None
+                None,
             )
 
         try:
@@ -664,59 +529,42 @@ async def on_like(event):
         except Exception:
             amount = 1
 
-        if amount < 1:
-            amount = 1
+        amount = max(1, amount)
 
         total_likes += amount
 
         room_total = getattr(
             event,
             "total",
-            None
+            None,
         )
 
         try:
-
-            room_total = int(
-                room_total
-            )
-
+            room_total = int(room_total)
         except Exception:
-
             room_total = total_likes
 
         user = getattr(
             event,
             "user",
-            None
+            None,
         )
 
         username = get_username(user)
         avatar = get_avatar(user)
 
-        await broadcast({
-
-            "type": "like",
-
-            "amount":
-                amount,
-
-            "total":
-                room_total,
-
-            "username":
-                username
-
-        })
-
-        # ----------------------------------------------------
-        # Every 20 likes = 1 point
-        # ----------------------------------------------------
-
-        should_have = (
-            total_likes
-            // LIKE_EVERY
+        await broadcast(
+            {
+                "type": "like",
+                "amount": amount,
+                "total": room_total,
+                "username": username,
+            }
         )
+
+        # Every 20 likes = 1 point
+
+        should_have = total_likes // LIKE_EVERY
 
         new_points = (
             should_have
@@ -726,80 +574,65 @@ async def on_like(event):
         if new_points <= 0:
             return
 
-        like_points_given = (
-            should_have
+        like_points_given = should_have
+
+        points = new_points * LIKE_POINTS
+
+        scores[AZERBAIJAN_PLAYER] += points
+
+        await broadcast(
+            {
+                "type": "gift",
+
+                "username": username,
+
+                "player_name": username,
+
+                "gift_name": "Like",
+
+                "gift_key": "like",
+
+                "coins": 0,
+
+                "count": new_points,
+
+                "player_id": AZERBAIJAN_PLAYER,
+
+                "points": points,
+
+                "scores": scores[:],
+
+                "avatar": avatar,
+
+                "sound": True,
+
+                "reason": "like",
+            }
         )
-
-        points = (
-            new_points
-            * LIKE_POINTS
-        )
-
-        scores[
-            AZERBAIJAN_PLAYER
-        ] += points
-
-        await broadcast({
-
-            "type": "gift",
-
-            "username":
-                username,
-
-            "player_name":
-                username,
-
-            "gift_name":
-                "Like",
-
-            "gift_key":
-                "like",
-
-            "coins":
-                0,
-
-            "count":
-                new_points,
-
-            "player_id":
-                AZERBAIJAN_PLAYER,
-
-            "points":
-                points,
-
-            "scores":
-                scores[:],
-
-            "avatar":
-                avatar,
-
-            "sound":
-                True,
-
-            "reason":
-                "like"
-
-        })
 
         await broadcast_top()
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[Like] ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
 
-async def on_follow(event):
+# ============================================================
+# FOLLOW
+# ============================================================
+
+async def on_follow(event) -> None:
 
     try:
 
         user = getattr(
             event,
             "user",
-            None
+            None,
         )
 
         username = get_username(user)
@@ -807,113 +640,100 @@ async def on_follow(event):
 
         player_id = TURKEY_PLAYER
 
-        scores[player_id] += (
-            FOLLOW_POINTS
+        scores[player_id] += FOLLOW_POINTS
+
+        await broadcast(
+            {
+                "type": "follow",
+                "username": username,
+            }
         )
 
-        await broadcast({
+        await broadcast(
+            {
+                "type": "gift",
 
-            "type":
-                "follow",
+                "username": username,
 
-            "username":
-                username
+                "player_name": username,
 
-        })
+                "gift_name": "Follow",
 
-        await broadcast({
+                "gift_key": "follow",
 
-            "type":
-                "gift",
+                "coins": 0,
 
-            "username":
-                username,
+                "count": 1,
 
-            "player_name":
-                username,
+                "player_id": player_id,
 
-            "gift_name":
-                "Follow",
+                "points": FOLLOW_POINTS,
 
-            "gift_key":
-                "follow",
+                "scores": scores[:],
 
-            "coins":
-                0,
+                "avatar": avatar,
 
-            "count":
-                1,
+                "sound": True,
 
-            "player_id":
-                player_id,
-
-            "points":
-                FOLLOW_POINTS,
-
-            "scores":
-                scores[:],
-
-            "avatar":
-                avatar,
-
-            "sound":
-                True,
-
-            "reason":
-                "follow"
-
-        })
+                "reason": "follow",
+            }
+        )
 
         await broadcast_top()
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[Follow] ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
 
-async def on_share(event):
+# ============================================================
+# SHARE
+# ============================================================
+
+async def on_share(event) -> None:
 
     try:
 
         user = getattr(
             event,
             "user",
-            None
+            None,
         )
 
         username = get_username(user)
 
-        await broadcast({
+        await broadcast(
+            {
+                "type": "share",
+                "username": username,
+            }
+        )
 
-            "type":
-                "share",
-
-            "username":
-                username
-
-        })
-
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[Share] ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
 
-async def on_comment(event):
+# ============================================================
+# COMMENT
+# ============================================================
+
+async def on_comment(event) -> None:
 
     try:
 
         user = getattr(
             event,
             "user",
-            None
+            None,
         )
 
         username = get_username(user)
@@ -922,30 +742,30 @@ async def on_comment(event):
             getattr(
                 event,
                 "comment",
-                ""
+                None,
+            )
+            or getattr(
+                event,
+                "content",
+                None,
             )
             or ""
         )
 
-        await broadcast({
+        await broadcast(
+            {
+                "type": "comment",
+                "username": username,
+                "comment": comment,
+            }
+        )
 
-            "type":
-                "comment",
-
-            "username":
-                username,
-
-            "comment":
-                comment
-
-        })
-
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[Comment] ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
 
@@ -953,51 +773,52 @@ async def on_comment(event):
 # STOP TIKTOK
 # ============================================================
 
-async def stop_tiktok():
+async def stop_tiktok() -> None:
 
     global tiktok_client
     global tiktok_task
     global current_room_id
 
-    if tiktok_client is not None:
-
-        try:
-
-            result = tiktok_client.disconnect()
-
-            if asyncio.iscoroutine(result):
-
-                await result
-
-        except Exception as e:
-
-            print(
-                "[TikTok] disconnect error:",
-                type(e).__name__,
-                str(e)
-            )
-
-    if tiktok_task is not None:
-
-        try:
-
-            if not tiktok_task.done():
-
-                tiktok_task.cancel()
-
-        except Exception:
-            pass
+    client = tiktok_client
+    task = tiktok_task
 
     tiktok_client = None
     tiktok_task = None
     current_room_id = None
+
+    if client is not None:
+
+        try:
+
+            result = client.disconnect()
+
+            if asyncio.iscoroutine(result):
+                await result
+
+        except Exception as exc:
+
+            print(
+                "[TikTok] disconnect error:",
+                type(exc).__name__,
+                str(exc),
+            )
+
+    if task is not None:
+
+        try:
+
+            if not task.done():
+                task.cancel()
+
+        except Exception:
+            pass
 
 
 # ============================================================
 # START TIKTOK
 # ============================================================
 
-async def start_tiktok(username: str):
+async def start_tiktok(username: str) -> None:
 
     global tiktok_client
     global tiktok_task
@@ -1006,18 +827,13 @@ async def start_tiktok(username: str):
 
     if not TIKTOK_AVAILABLE:
 
-        await broadcast({
-
-            "type":
-                "status",
-
-            "message":
-                "TikTokLive import edilmedi.",
-
-            "connected":
-                False
-
-        })
+        await broadcast(
+            {
+                "type": "status",
+                "message": "TikTokLive import edilmedi.",
+                "connected": False,
+            }
+        )
 
         return
 
@@ -1028,18 +844,13 @@ async def start_tiktok(username: str):
 
     if not username:
 
-        await broadcast({
-
-            "type":
-                "status",
-
-            "message":
-                "Username boşdur",
-
-            "connected":
-                False
-
-        })
+        await broadcast(
+            {
+                "type": "status",
+                "message": "Username boşdur.",
+                "connected": False,
+            }
+        )
 
         return
 
@@ -1047,25 +858,22 @@ async def start_tiktok(username: str):
 
     current_user = username
 
-    await broadcast({
-
-        "type":
-            "status",
-
-        "message":
-            f"Yoxlanılır @{username} ...",
-
-        "connected":
-            False,
-
-        "username":
-            username
-
-    })
+    await broadcast(
+        {
+            "type": "status",
+            "message": f"Yoxlanılır @{username} ...",
+            "connected": False,
+            "username": username,
+        }
+    )
 
     print(
-        f"[TikTok] is_live @{username}"
+        f"[TikTok] Checking @{username}"
     )
+
+    # ========================================================
+    # CLIENT
+    # ========================================================
 
     try:
 
@@ -1073,239 +881,191 @@ async def start_tiktok(username: str):
             unique_id=username
         )
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[TikTok] client creation ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
-        await broadcast({
-
-            "type":
-                "status",
-
-            "message":
-                f"Client xətası: {str(e)[:200]}",
-
-            "connected":
-                False
-
-        })
+        await broadcast(
+            {
+                "type": "status",
+                "message":
+                    f"Client xətası: {str(exc)[:250]}",
+                "connected": False,
+            }
+        )
 
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # LIVE CHECK
-    # --------------------------------------------------------
+    # ========================================================
 
     try:
 
         is_live = await client.is_live()
 
-    except Exception as e:
+    except Exception as exc:
 
-        error = str(e)
+        error = str(exc)
 
         print(
             "[TikTok] is_live ERROR:",
-            type(e).__name__,
-            error
+            type(exc).__name__,
+            error,
         )
 
-        await broadcast({
-
-            "type":
-                "status",
-
-            "message":
-                f"LIVE yoxlama xətası: {error[:200]}",
-
-            "connected":
-                False,
-
-            "error":
-                error
-
-        })
+        await broadcast(
+            {
+                "type": "status",
+                "message":
+                    f"LIVE yoxlama xətası: {error[:250]}",
+                "connected": False,
+                "error": error,
+            }
+        )
 
         return
 
     if not is_live:
 
-        await broadcast({
-
-            "type":
-                "status",
-
-            "message":
-                f"@{username} hazırda LIVE deyil",
-
-            "connected":
-                False,
-
-            "username":
-                username
-
-        })
+        await broadcast(
+            {
+                "type": "status",
+                "message":
+                    f"@{username} hazırda LIVE deyil",
+                "connected": False,
+                "username": username,
+            }
+        )
 
         return
 
-    # --------------------------------------------------------
-    # ROOM ID
-    # --------------------------------------------------------
-
-    room_id = getattr(
-        client,
-        "room_id",
-        None
-    )
-
-    if room_id is None:
-
-        room_id = getattr(
-            client,
-            "roomId",
-            None
-        )
-
-    print(
-        "[TikTok] room_id:",
-        room_id
-    )
-
-    await broadcast({
-
-        "type":
-            "status",
-
-        "message":
-            f"LIVE tapıldı, qoşulur @{username} ...",
-
-        "connected":
-            False,
-
-        "username":
-            username,
-
-        "room_id":
-            room_id
-
-    })
-
-    # --------------------------------------------------------
-    # EVENTS
-    # --------------------------------------------------------
+    # ========================================================
+    # EVENT LISTENERS
+    # ========================================================
 
     try:
 
         client.add_listener(
             ConnectEvent,
-            on_connect
+            on_connect,
         )
 
         client.add_listener(
             DisconnectEvent,
-            on_disconnect
+            on_disconnect,
         )
 
         client.add_listener(
             GiftEvent,
-            on_gift
+            on_gift,
         )
 
         client.add_listener(
             LikeEvent,
-            on_like
+            on_like,
         )
 
         client.add_listener(
             FollowEvent,
-            on_follow
+            on_follow,
         )
 
         client.add_listener(
             ShareEvent,
-            on_share
+            on_share,
         )
 
         client.add_listener(
             CommentEvent,
-            on_comment
+            on_comment,
         )
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[TikTok] event registration ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
-        await broadcast({
-
-            "type":
-                "status",
-
-            "message":
-                f"Event xətası: {str(e)[:200]}",
-
-            "connected":
-                False
-
-        })
+        await broadcast(
+            {
+                "type": "status",
+                "message":
+                    f"Event xətası: {str(exc)[:250]}",
+                "connected": False,
+            }
+        )
 
         return
 
-    tiktok_client = client
-    current_room_id = room_id
+    # ========================================================
+    # SAVE CLIENT
+    # ========================================================
 
-    # --------------------------------------------------------
+    tiktok_client = client
+
+    await broadcast(
+        {
+            "type": "status",
+            "message":
+                f"LIVE tapıldı, qoşulur @{username} ...",
+            "connected": False,
+            "username": username,
+        }
+    )
+
+    # ========================================================
     # START
-    # --------------------------------------------------------
+    # ========================================================
 
     try:
 
-        result = await client.start(
+        task = await client.start(
             fetch_live_check=False,
-            fetch_gift_info=True
+            fetch_gift_info=True,
         )
 
-        tiktok_task = result
+        tiktok_task = task
+
+        current_room_id = getattr(
+            client,
+            "room_id",
+            None,
+        )
 
         print(
             f"[TikTok] START OK @{username}"
         )
 
-    except Exception as e:
+    except Exception as exc:
 
-        error = str(e)
+        error = str(exc)
 
         print(
             "[TikTok] START ERROR:",
-            type(e).__name__,
-            error
+            type(exc).__name__,
+            error,
         )
 
         tiktok_client = None
         tiktok_task = None
+        current_room_id = None
 
-        await broadcast({
-
-            "type":
-                "status",
-
-            "message":
-                f"Qoşulma xətası: {error[:250]}",
-
-            "connected":
-                False,
-
-            "error":
-                error
-
-        })
+        await broadcast(
+            {
+                "type": "status",
+                "message":
+                    f"Qoşulma xətası: {error[:300]}",
+                "connected": False,
+                "error": error,
+            }
+        )
 
 
 # ============================================================
@@ -1326,52 +1086,43 @@ async def ws_handler(request):
     clients.add(ws)
 
     print(
-        "WS client +1 =",
-        len(clients)
+        "[WS] client +1 =",
+        len(clients),
     )
 
     await ws.send_str(
         json.dumps(
             {
-                "type":
-                    "init",
+                "type": "init",
 
-                "scores":
-                    scores[:],
+                "scores": scores[:],
 
-                "total_likes":
-                    total_likes,
+                "total_likes": total_likes,
 
-                "supporters":
-                    [
-                        {
-                            "username":
-                                username,
+                "supporters": [
+                    {
+                        "username": username,
+                        "coins": coins,
+                    }
+                    for username, coins
+                    in sorted(
+                        supporters.items(),
+                        key=lambda item: -item[1],
+                    )[:3]
+                ],
 
-                            "coins":
-                                coins
-                        }
-
-                        for username, coins
-                        in sorted(
-                            supporters.items(),
-                            key=lambda item: -item[1]
-                        )[:3]
-                    ],
-
-                "gift_map":
-                    GIFT_MAP,
+                "gift_map": GIFT_MAP,
 
                 "connected":
-                    tiktok_client is not None,
+                    (
+                        tiktok_client is not None
+                    ),
 
-                "username":
-                    current_user,
+                "username": current_user,
 
-                "room_id":
-                    current_room_id
+                "room_id": current_room_id,
             },
-            ensure_ascii=False
+            ensure_ascii=False,
         )
     )
 
@@ -1383,95 +1134,74 @@ async def ws_handler(request):
                 continue
 
             try:
-
-                data = json.loads(
-                    msg.data
-                )
-
+                data = json.loads(msg.data)
             except Exception:
                 continue
 
-            message_type = data.get(
-                "type"
-            )
+            message_type = data.get("type")
 
-            # ------------------------------------------------
+            # =================================================
             # SET USER
-            # ------------------------------------------------
+            # =================================================
 
             if message_type == "set_user":
 
                 username = (
-                    data.get(
-                        "username"
-                    )
+                    data.get("username")
                     or ""
                 ).strip().lstrip("@")
 
                 if username:
 
                     asyncio.create_task(
-                        start_tiktok(
-                            username
-                        )
+                        start_tiktok(username)
                     )
 
                 else:
 
                     await stop_tiktok()
 
-                    await broadcast({
+                    await broadcast(
+                        {
+                            "type": "status",
+                            "message": "Test rejimi",
+                            "connected": False,
+                        }
+                    )
 
-                        "type":
-                            "status",
-
-                        "message":
-                            "Test rejimi",
-
-                        "connected":
-                            False
-
-                    })
-
-            # ------------------------------------------------
+            # =================================================
             # TEST GIFT
-            # ------------------------------------------------
+            # =================================================
 
             elif message_type == "gift":
 
                 try:
-
                     player_id = (
                         int(
                             data.get(
                                 "player_id",
-                                0
+                                0,
                             )
                         )
                         % PLAYER_COUNT
                     )
-
                 except Exception:
-
                     player_id = 0
 
                 try:
-
                     points = int(
                         data.get(
                             "points",
-                            GIFT_POINTS
+                            GIFT_POINTS,
                         )
                     )
-
                 except Exception:
-
                     points = GIFT_POINTS
 
                 username = (
                     data.get(
                         "username",
-                        "test"
+                        "test",
                     )
                     or "test"
                 )
@@ -1479,82 +1209,69 @@ async def ws_handler(request):
                 gift_name = (
                     data.get(
                         "gift_name",
-                        "Test"
+                        "Test",
                     )
                     or "Test"
                 )
 
                 try:
-
                     coins = int(
                         data.get(
                             "coins",
-                            1
+                            1,
                         )
                     )
-
                 except Exception:
-
                     coins = 1
 
                 supporters[username] = (
                     supporters.get(
                         username,
-                        0
+                        0,
                     )
                     + coins
                 )
 
                 scores[player_id] += points
 
-                await broadcast({
+                await broadcast(
+                    {
+                        "type": "gift",
 
-                    "type":
-                        "gift",
+                        "username": username,
 
-                    "username":
-                        username,
+                        "player_name": username,
 
-                    "player_name":
-                        username,
+                        "gift_name": gift_name,
 
-                    "gift_name":
-                        gift_name,
+                        "gift_key":
+                            gift_name.lower().strip(),
 
-                    "player_id":
-                        player_id,
+                        "player_id": player_id,
 
-                    "points":
-                        points,
+                        "points": points,
 
-                    "coins":
-                        coins,
+                        "coins": coins,
 
-                    "count":
-                        1,
+                        "count": 1,
 
-                    "scores":
-                        scores[:],
+                        "scores": scores[:],
 
-                    "avatar":
-                        "",
+                        "avatar": "",
 
-                    "sound":
-                        True
-
-                })
+                        "sound": True,
+                    }
+                )
 
                 await broadcast_top()
 
-            # ------------------------------------------------
+            # =================================================
             # RESET
-            # ------------------------------------------------
+            # =================================================
 
             elif message_type == "reset_scores":
 
-                for i in range(
-                    PLAYER_COUNT
-                ):
+                for i in range(PLAYER_COUNT):
                     scores[i] = 0
 
                 total_likes = 0
@@ -1565,12 +1282,12 @@ async def ws_handler(request):
                 await broadcast_scores()
                 await broadcast_top()
 
-    except Exception as e:
+    except Exception as exc:
 
         print(
             "[WS] ERROR:",
-            type(e).__name__,
-            str(e)
+            type(exc).__name__,
+            str(exc),
         )
 
     finally:
@@ -1578,56 +1295,61 @@ async def ws_handler(request):
         clients.discard(ws)
 
         print(
-            "WS client -1 =",
-            len(clients)
+            "[WS] client -1 =",
+            len(clients),
         )
 
     return ws
 
 
 # ============================================================
-# HTTP
+# HTTP INDEX
 # ============================================================
 
 async def index(request):
 
-    files = (
+    candidates = (
         "football_gift_race_fixed.html",
         "index.html",
     )
 
-    for filename in files:
+    for filename in candidates:
 
         path = ROOT / filename
 
         if path.is_file():
 
-            response = web.FileResponse(
-                path
+            response = web.FileResponse(path)
+
+            response.headers["Cache-Control"] = (
+                "no-store, no-cache, "
+                "must-revalidate, max-age=0"
             )
 
-            response.headers[
-                "Cache-Control"
-            ] = (
-                "no-store, "
-                "no-cache, "
-                "must-revalidate, "
-                "max-age=0"
-            )
-
-            response.headers[
-                "Pragma"
-            ] = "no-cache"
+            response.headers["Pragma"] = "no-cache"
 
             return response
 
     return web.Response(
+        text="index.html not found",
+        status=404,
+    )
 
-        text=
-            "index.html not found",
 
-        status=404
+# ============================================================
+# HEALTH
+# ============================================================
 
+async def health(request):
+
+    return web.json_response(
+        {
+            "ok": True,
+            "tiktoklive": TIKTOK_AVAILABLE,
+            "username": current_user,
+            "connected":
+                tiktok_client is not None,
+        }
     )
 
 
@@ -1641,22 +1363,27 @@ def create_app():
 
     app.router.add_get(
         "/",
-        index
-    )
-
-    app.router.add_get(
-        "/ws",
-        ws_handler
+        index,
     )
 
     app.router.add_get(
         "/index.html",
-        index
+        index,
     )
 
     app.router.add_get(
         "/football_gift_race_fixed.html",
-        index
+        index,
+    )
+
+    app.router.add_get(
+        "/ws",
+        ws_handler,
+    )
+
+    app.router.add_get(
+        "/health",
+        health,
     )
 
     assets = ROOT / "assets"
@@ -1665,68 +1392,54 @@ def create_app():
 
         app.router.add_static(
             "/assets/",
-            assets
+            assets,
         )
 
     return app
 
 
 # ============================================================
-# MAIN SERVER
+# SERVER MAIN
 # ============================================================
 
 async def main():
 
     app = create_app()
 
-    runner = web.AppRunner(
-        app
-    )
+    runner = web.AppRunner(app)
 
     await runner.setup()
 
     site = web.TCPSite(
         runner,
         HOST,
-        PORT
+        PORT,
     )
 
     await site.start()
 
     print("=" * 70)
-    print(" Football Gift Race + TikTok Live")
-    print(f" http://localhost:{PORT}")
+    print("Football Gift Race + TikTok Live")
+    print(f"http://127.0.0.1:{PORT}")
     print("=" * 70)
 
     print(
         "[Status] TikTokLive:",
-        "OK"
-        if TIKTOK_AVAILABLE
-        else "UNAVAILABLE"
+        "OK" if TIKTOK_AVAILABLE else "UNAVAILABLE",
     )
 
     print(
-        "[Status] Euler:",
-        "used internally by TikTokLive"
+        "[Status] EulerApiSdk:",
+        "0.0.3 required by project",
     )
 
     while True:
-
-        await asyncio.sleep(
-            3600
-        )
+        await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":
 
     try:
-
-        asyncio.run(
-            main()
-        )
-
+        asyncio.run(main())
     except KeyboardInterrupt:
-
-        print(
-            "Stopped."
-        )
+        print("Stopped.")

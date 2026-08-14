@@ -2,12 +2,15 @@
 """
 Football Gift Race — TikTok Live server
 Termux / Android ready
+
+TikTokLive + EulerApiSdk
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import inspect
 from pathlib import Path
 
 from aiohttp import web
@@ -15,10 +18,226 @@ import aiohttp
 
 
 # ============================================================
-# TikTokLive / EulerApiSdk
+# EulerApiSdk
 # ============================================================
 
 EULER_AVAILABLE = False
+
+euler_fetch_webcast_url = None
+EulerClient = None
+EulerAuthenticatedClient = None
+
+
+def prepare_euler_sdk():
+    """
+    EulerApiSdk üçün düzgün import.
+
+    IMPORTANT:
+        EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url
+    bir FUNCTION deyil, MODULE-dur.
+
+    Əsl async function:
+        EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url.asyncio
+    """
+
+    global euler_fetch_webcast_url
+    global EulerClient
+    global EulerAuthenticatedClient
+
+    try:
+
+        # ----------------------------------------------------
+        # DÜZGÜN endpoint
+        # ----------------------------------------------------
+
+        from EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url import (
+            asyncio as fetch_webcast_url_async
+        )
+
+        euler_fetch_webcast_url = (
+            fetch_webcast_url_async
+        )
+
+        # ----------------------------------------------------
+        # Euler client
+        # ----------------------------------------------------
+
+        from EulerApiSdk.client import (
+            Client,
+            AuthenticatedClient,
+        )
+
+        EulerClient = Client
+        EulerAuthenticatedClient = AuthenticatedClient
+
+        print()
+        print("=" * 70)
+        print("[Euler] SDK IMPORT OK")
+        print("=" * 70)
+
+        print(
+            "[Euler] fetch_webcast_url:",
+            euler_fetch_webcast_url
+        )
+
+        print(
+            "[Euler] module:",
+            getattr(
+                euler_fetch_webcast_url,
+                "__module__",
+                "unknown"
+            )
+        )
+
+        try:
+
+            print(
+                "[Euler] signature:",
+                inspect.signature(
+                    euler_fetch_webcast_url
+                )
+            )
+
+        except Exception as e:
+
+            print(
+                "[Euler] signature error:",
+                type(e).__name__,
+                str(e)
+            )
+
+        print(
+            "[Euler] Client:",
+            EulerClient
+        )
+
+        print(
+            "[Euler] AuthenticatedClient:",
+            EulerAuthenticatedClient
+        )
+
+        print("=" * 70)
+
+        return True
+
+    except Exception as e:
+
+        print()
+        print("=" * 70)
+
+        print(
+            "[Euler] IMPORT FAILED:",
+            type(e).__name__,
+            str(e)
+        )
+
+        print("=" * 70)
+
+        euler_fetch_webcast_url = None
+        EulerClient = None
+        EulerAuthenticatedClient = None
+
+        return False
+
+
+EULER_AVAILABLE = prepare_euler_sdk()
+
+
+# ============================================================
+# Euler helper
+# ============================================================
+
+async def euler_fetch_room(
+    room_id: str,
+    unique_id: str | None = None
+):
+    """
+    Euler üzerinden TikTok LIVE room websocket məlumatını alır.
+
+    Endpoint:
+        GET /webcast/rooms/{room_id}/connect
+
+    Euler SDK-nın göstərdiyi real signature istifadə olunur.
+    """
+
+    if not EULER_AVAILABLE:
+
+        raise RuntimeError(
+            "EulerApiSdk available deyil"
+        )
+
+    if not room_id:
+
+        raise ValueError(
+            "room_id boşdur"
+        )
+
+    if EulerClient is None:
+
+        raise RuntimeError(
+            "Euler Client import olunmayıb"
+        )
+
+    print(
+        "[Euler] Fetching room:",
+        room_id
+    )
+
+    # --------------------------------------------------------
+    # Anonymous Euler client
+    # --------------------------------------------------------
+
+    client = EulerClient(
+        base_url="https://eulerstream.com"
+    )
+
+    try:
+
+        result = await euler_fetch_webcast_url(
+            room_id=str(room_id),
+            client=client,
+            unique_id=unique_id
+        )
+
+        print(
+            "[Euler] fetch_webcast_url result:",
+            result
+        )
+
+        return result
+
+    finally:
+
+        # Client obyektində close varsa bağlayırıq.
+        try:
+
+            close = getattr(
+                client,
+                "close",
+                None
+            )
+
+            if callable(close):
+
+                result = close()
+
+                if inspect.isawaitable(result):
+
+                    await result
+
+        except Exception as e:
+
+            print(
+                "[Euler] client close:",
+                type(e).__name__,
+                str(e)
+            )
+
+
+# ============================================================
+# TikTokLive
+# ============================================================
+
 TIKTOK_AVAILABLE = False
 
 TikTokLiveClient = None
@@ -31,96 +250,6 @@ FollowEvent = None
 ShareEvent = None
 CommentEvent = None
 
-fetch_webcast_url = None
-
-
-# ============================================================
-# EulerApiSdk
-# ============================================================
-
-def prepare_euler_sdk():
-    """
-    EulerApiSdk istifadə edir:
-
-        EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url
-
-    Bu funksiya TikTokLive üçün webcast URL əldə etmək
-    məqsədilə istifadə olunur.
-    """
-
-    global fetch_webcast_url
-
-    try:
-        import EulerApiSdk
-
-        print(
-            "[Euler] EulerApiSdk import OK"
-        )
-
-        print(
-            "[Euler] version:",
-            getattr(
-                EulerApiSdk,
-                "__version__",
-                "unknown"
-            )
-        )
-
-        # ----------------------------------------------------
-        # ƏSAS MODUL
-        # ----------------------------------------------------
-
-        from EulerApiSdk.api.tik_tok_live_rooms import (
-            fetch_webcast_url as _fetch_webcast_url
-        )
-
-        fetch_webcast_url = _fetch_webcast_url
-
-        print(
-            "[Euler] "
-            "EulerApiSdk.api.tik_tok_live_rooms.fetch_webcast_url: OK"
-        )
-
-        print(
-            "[Euler] function:",
-            fetch_webcast_url
-        )
-
-        print(
-            "[Euler] module:",
-            getattr(
-                fetch_webcast_url,
-                "__module__",
-                "unknown"
-            )
-        )
-
-        return True
-
-    except Exception as e:
-
-        fetch_webcast_url = None
-
-        print(
-            "[Euler] fetch_webcast_url import failed:"
-        )
-
-        print(
-            "        ",
-            type(e).__name__,
-            str(e)
-        )
-
-        return False
-
-
-# Euler-i hazırla
-EULER_AVAILABLE = prepare_euler_sdk()
-
-
-# ============================================================
-# TikTokLive import
-# ============================================================
 
 try:
 
@@ -146,19 +275,10 @@ except Exception as e:
 
     TIKTOK_AVAILABLE = False
 
-    TikTokLiveClient = None
-
-    ConnectEvent = None
-    DisconnectEvent = None
-    GiftEvent = None
-    LikeEvent = None
-    FollowEvent = None
-    ShareEvent = None
-    CommentEvent = None
-
     print(
-        "[TikTokLive] import failed:",
+        "[TikTokLive import failed]",
         type(e).__name__,
+        ":",
         str(e)
     )
 
@@ -222,7 +342,7 @@ TURKEY_PLAYER = 1
 
 
 # ============================================================
-# STATE
+# State
 # ============================================================
 
 clients = set()
@@ -241,11 +361,13 @@ tiktok_task = None
 
 current_user = ""
 
+current_room_id = None
+
 ROOT = Path(__file__).parent.resolve()
 
 
 # ============================================================
-# BROADCAST
+# Broadcast
 # ============================================================
 
 async def broadcast(data: dict):
@@ -253,21 +375,10 @@ async def broadcast(data: dict):
     if not clients:
         return
 
-    try:
-
-        msg = json.dumps(
-            data,
-            ensure_ascii=False
-        )
-
-    except Exception as e:
-
-        print(
-            "[Broadcast] JSON error:",
-            e
-        )
-
-        return
+    msg = json.dumps(
+        data,
+        ensure_ascii=False
+    )
 
     dead = []
 
@@ -317,13 +428,14 @@ async def broadcast_top():
             }
 
             for username, coins in top
+
         ]
 
     })
 
 
 # ============================================================
-# AVATAR
+# Avatar
 # ============================================================
 
 _avatar_debug_done = False
@@ -334,16 +446,15 @@ def _extract_avatar(user) -> str | None:
     global _avatar_debug_done
 
     if user is None:
+
         return None
 
     found = []
 
     def walk(obj, depth=0):
 
-        if obj is None:
-            return
+        if obj is None or depth > 5:
 
-        if depth > 5:
             return
 
         if isinstance(obj, str):
@@ -351,13 +462,13 @@ def _extract_avatar(user) -> str | None:
             if (
                 obj.startswith("http")
                 and (
-                    "tiktok" in obj.lower()
-                    or "byteoversea" in obj.lower()
-                    or "avt" in obj.lower()
-                    or "avatar" in obj.lower()
-                    or "webp" in obj.lower()
-                    or "jpeg" in obj.lower()
-                    or "png" in obj.lower()
+                    "tiktok" in obj
+                    or "byteoversea" in obj
+                    or "avt" in obj
+                    or "avatar" in obj
+                    or "webp" in obj
+                    or "jpeg" in obj
+                    or "png" in obj
                 )
             ):
 
@@ -503,7 +614,7 @@ def _extract_avatar(user) -> str | None:
 
 
 # ============================================================
-# TIKTOK EVENTS
+# TikTok Events
 # ============================================================
 
 async def on_connect(event):
@@ -535,8 +646,9 @@ async def on_connect(event):
 
         "connected": True,
 
-        "username": unique_id
+        "username": unique_id,
 
+        "room_id": room_id
     })
 
 
@@ -554,13 +666,8 @@ async def on_disconnect(event):
             "TikTok disconnected",
 
         "connected": False
-
     })
 
-
-# ============================================================
-# GIFT
-# ============================================================
 
 async def on_gift(event):
 
@@ -573,6 +680,7 @@ async def on_gift(event):
         )
 
         if gift is None:
+
             return
 
         user = getattr(
@@ -728,7 +836,9 @@ async def on_gift(event):
             repeat_end = (
 
                 1
+
                 if repeat_end
+
                 else 0
 
             )
@@ -736,7 +846,9 @@ async def on_gift(event):
         is_mid_streak = (
 
             streakable
+
             and streaking
+
             and not repeat_end
 
         )
@@ -786,7 +898,10 @@ async def on_gift(event):
 
             player_id = (
 
-                abs(hash(username))
+                abs(
+                    hash(username)
+                )
+
                 % PLAYER_COUNT
 
             )
@@ -794,7 +909,11 @@ async def on_gift(event):
         points = (
 
             GIFT_POINTS
-            * max(1, count)
+
+            * max(
+                1,
+                count
+            )
 
         )
 
@@ -822,10 +941,10 @@ async def on_gift(event):
 
             "scores": scores[:],
 
-            "avatar": avatar or "",
+            "avatar":
+                avatar or "",
 
             "sound": True
-
         })
 
         await broadcast_top()
@@ -838,10 +957,6 @@ async def on_gift(event):
             str(e)
         )
 
-
-# ============================================================
-# LIKE
-# ============================================================
 
 async def on_like(event):
 
@@ -943,7 +1058,6 @@ async def on_like(event):
             "total": room_total,
 
             "username": username
-
         })
 
         should_have = (
@@ -1005,7 +1119,6 @@ async def on_like(event):
                 "sound": True,
 
                 "reason": "like"
-
             })
 
             await broadcast_top()
@@ -1018,10 +1131,6 @@ async def on_like(event):
             str(e)
         )
 
-
-# ============================================================
-# FOLLOW
-# ============================================================
 
 async def on_follow(event):
 
@@ -1115,10 +1224,6 @@ async def on_follow(event):
         )
 
 
-# ============================================================
-# SHARE
-# ============================================================
-
 async def on_share(event):
 
     try:
@@ -1168,10 +1273,6 @@ async def on_share(event):
         )
 
 
-# ============================================================
-# COMMENT
-# ============================================================
-
 async def on_comment(event):
 
     try:
@@ -1204,19 +1305,21 @@ async def on_comment(event):
 
             )
 
-        comment = getattr(
-            event,
-            "comment",
-            ""
-        ) or ""
-
         await broadcast({
 
             "type": "comment",
 
             "username": username,
 
-            "comment": comment
+            "comment":
+
+                getattr(
+                    event,
+                    "comment",
+                    ""
+                )
+
+                or ""
 
         })
 
@@ -1230,23 +1333,20 @@ async def on_comment(event):
 
 
 # ============================================================
-# TIKTOK CONNECTION
+# TikTok connection
 # ============================================================
 
 async def stop_tiktok():
 
     global tiktok_client
     global tiktok_task
+    global current_room_id
 
     if tiktok_client is not None:
 
         try:
 
-            result = tiktok_client.disconnect()
-
-            if asyncio.iscoroutine(result):
-
-                await result
+            await tiktok_client.disconnect()
 
         except Exception as e:
 
@@ -1259,12 +1359,15 @@ async def stop_tiktok():
 
     tiktok_task = None
 
+    current_room_id = None
+
 
 async def start_tiktok(username: str):
 
     global tiktok_client
     global tiktok_task
     global current_user
+    global current_room_id
 
     if not TIKTOK_AVAILABLE:
 
@@ -1321,16 +1424,12 @@ async def start_tiktok(username: str):
         f"[TikTok] Checking is_live @{username}"
     )
 
-    # --------------------------------------------------------
-    # TikTokLive client
-    # --------------------------------------------------------
-
     client = TikTokLiveClient(
         unique_id=username
     )
 
     # --------------------------------------------------------
-    # LIVE yoxlaması
+    # is_live
     # --------------------------------------------------------
 
     try:
@@ -1379,6 +1478,103 @@ async def start_tiktok(username: str):
 
         return
 
+    # --------------------------------------------------------
+    # Room ID almağa çalış
+    # --------------------------------------------------------
+
+    room_id = getattr(
+        client,
+        "room_id",
+        None
+    )
+
+    if room_id is None:
+
+        try:
+
+            room_id = getattr(
+                client,
+                "roomId",
+                None
+            )
+
+        except Exception:
+
+            room_id = None
+
+    print(
+        "[TikTok] room_id:",
+        room_id
+    )
+
+    # --------------------------------------------------------
+    # Euler test
+    # --------------------------------------------------------
+
+    if EULER_AVAILABLE and room_id:
+
+        try:
+
+            print(
+                "[Euler] Trying "
+                "fetch_webcast_url..."
+            )
+
+            euler_result = (
+                await euler_fetch_room(
+                    room_id=str(room_id),
+                    unique_id=username
+                )
+            )
+
+            print(
+                "[Euler] SUCCESS:"
+            )
+
+            print(
+                euler_result
+            )
+
+            await broadcast({
+
+                "type": "euler",
+
+                "success": True,
+
+                "room_id":
+                    str(room_id)
+
+            })
+
+        except Exception as e:
+
+            print(
+                "[Euler] fetch failed:",
+                type(e).__name__,
+                str(e)
+            )
+
+            await broadcast({
+
+                "type": "euler",
+
+                "success": False,
+
+                "error":
+                    str(e)[:300],
+
+                "room_id":
+                    str(room_id)
+
+            })
+
+    elif EULER_AVAILABLE:
+
+        print(
+            "[Euler] room_id TikTokLive "
+            "client-dan alınmadı"
+        )
+
     await broadcast({
 
         "type": "status",
@@ -1392,7 +1588,7 @@ async def start_tiktok(username: str):
     })
 
     # --------------------------------------------------------
-    # EVENT LISTENERS
+    # Events
     # --------------------------------------------------------
 
     client.add_listener(
@@ -1432,8 +1628,10 @@ async def start_tiktok(username: str):
 
     tiktok_client = client
 
+    current_room_id = room_id
+
     # --------------------------------------------------------
-    # START
+    # TikTokLive start
     # --------------------------------------------------------
 
     try:
@@ -1479,7 +1677,7 @@ async def start_tiktok(username: str):
 
 
 # ============================================================
-# WEBSOCKET
+# WebSocket
 # ============================================================
 
 async def ws_handler(request):
@@ -1501,49 +1699,44 @@ async def ws_handler(request):
     )
 
     await ws.send_str(
+        json.dumps({
 
-        json.dumps(
+            "type": "init",
 
-            {
+            "scores": scores[:],
 
-                "type": "init",
+            "total_likes":
+                total_likes,
 
-                "scores": scores[:],
+            "supporters": [
 
-                "total_likes":
-                    total_likes,
+                {
+                    "username": username,
+                    "coins": coins
+                }
 
-                "supporters": [
+                for username, coins
+                in sorted(
+                    supporters.items(),
+                    key=lambda x: -x[1]
+                )[:3]
 
-                    {
-                        "username": username,
-                        "coins": coins
-                    }
+            ],
 
-                    for username, coins
+            "gift_map":
+                GIFT_MAP,
 
-                    in sorted(
-                        supporters.items(),
-                        key=lambda x: -x[1]
-                    )[:3]
+            "connected":
+                tiktok_client is not None,
 
-                ],
+            "username":
+                current_user,
 
-                "gift_map":
-                    GIFT_MAP,
+            "room_id":
+                current_room_id
 
-                "connected":
-                    tiktok_client is not None,
-
-                "username":
-                    current_user
-
-            },
-
-            ensure_ascii=False
-
-        )
-
+        },
+        ensure_ascii=False)
     )
 
     try:
@@ -1568,10 +1761,6 @@ async def ws_handler(request):
                 "type"
             )
 
-            # ------------------------------------------------
-            # SET USER
-            # ------------------------------------------------
-
             if message_type == "set_user":
 
                 username = (
@@ -1587,11 +1776,9 @@ async def ws_handler(request):
                 if username:
 
                     asyncio.create_task(
-
                         start_tiktok(
                             username
                         )
-
                     )
 
                 else:
@@ -1608,10 +1795,6 @@ async def ws_handler(request):
                         "connected": False
 
                     })
-
-            # ------------------------------------------------
-            # TEST GIFT
-            # ------------------------------------------------
 
             elif message_type == "gift":
 
@@ -1637,12 +1820,10 @@ async def ws_handler(request):
                 try:
 
                     points = int(
-
                         data.get(
                             "points",
                             GIFT_POINTS
                         )
-
                     )
 
                 except Exception:
@@ -1662,12 +1843,10 @@ async def ws_handler(request):
                 try:
 
                     coins = int(
-
                         data.get(
                             "coins",
                             1
                         )
-
                     )
 
                 except Exception:
@@ -1718,10 +1897,6 @@ async def ws_handler(request):
 
                 await broadcast_top()
 
-            # ------------------------------------------------
-            # RESET
-            # ------------------------------------------------
-
             elif message_type == "reset_scores":
 
                 for i in range(
@@ -1734,7 +1909,11 @@ async def ws_handler(request):
 
                 like_points_given = 0
 
+                supporters.clear()
+
                 await broadcast_scores()
+
+                await broadcast_top()
 
     finally:
 
@@ -1773,12 +1952,10 @@ async def index(request):
             response.headers[
                 "Cache-Control"
             ] = (
-
                 "no-store, "
                 "no-cache, "
                 "must-revalidate, "
                 "max-age=0"
-
             )
 
             response.headers[
@@ -1797,10 +1974,6 @@ async def index(request):
 
     )
 
-
-# ============================================================
-# APP
-# ============================================================
 
 def create_app():
 
@@ -1834,7 +2007,7 @@ def create_app():
 
 
 # ============================================================
-# MAIN
+# Main
 # ============================================================
 
 async def main():
@@ -1855,7 +2028,7 @@ async def main():
 
     await site.start()
 
-    print("=" * 55)
+    print("=" * 50)
 
     print(
         " Football Gift Race + TikTok Live"
@@ -1865,19 +2038,12 @@ async def main():
         f" http://localhost:{PORT}"
     )
 
-    print("=" * 55)
+    print("=" * 50)
 
     print(
         "[Status] EulerApiSdk:",
         "OK"
         if EULER_AVAILABLE
-        else "UNAVAILABLE"
-    )
-
-    print(
-        "[Status] fetch_webcast_url:",
-        "OK"
-        if fetch_webcast_url is not None
         else "UNAVAILABLE"
     )
 
@@ -1888,18 +2054,12 @@ async def main():
         else "UNAVAILABLE"
     )
 
-    print("=" * 55)
-
     while True:
 
         await asyncio.sleep(
             3600
         )
 
-
-# ============================================================
-# RUN
-# ============================================================
 
 if __name__ == "__main__":
 

@@ -17,7 +17,7 @@ jobs:
 
     runs-on: ubuntu-22.04
 
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
 
@@ -36,7 +36,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.9"
 
 
       # ======================================================
@@ -78,16 +78,30 @@ jobs:
 
 
       # ======================================================
-      # PYTHON BUILD DEPENDENCIES
+      # PYTHON BUILD TOOLS
       # ======================================================
 
-      - name: Install Python dependencies
+      - name: Install build tools
         run: |
 
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade \
+            pip \
+            setuptools \
+            wheel
 
           pip install --no-cache-dir \
-            "buildozer>=1.5.0" \
+            "buildozer==1.5.0" \
+            "python-for-android==2024.1.21"
+
+
+      # ======================================================
+      # HOST TEST DEPENDENCIES
+      # ======================================================
+
+      - name: Install host dependencies
+        run: |
+
+          pip install --no-cache-dir \
             "aiohttp>=3.9,<4" \
             "TikTokLive==6.6.5" \
             "EulerApiSdk==0.0.3" \
@@ -103,11 +117,33 @@ jobs:
 
 
       # ======================================================
-      # VERIFY PACKAGES
+      # VERIFY
       # ======================================================
 
-      - name: Verify dependencies
+      - name: Verify Python environment
         run: |
+
+          echo "========================================"
+          echo "PYTHON"
+          echo "========================================"
+
+          python --version
+
+          echo "========================================"
+          echo "BUILDOZER"
+          echo "========================================"
+
+          buildozer --version
+
+          echo "========================================"
+          echo "P4A"
+          echo "========================================"
+
+          python -m pythonforandroid.toolchain --version || true
+
+          echo "========================================"
+          echo "PACKAGES"
+          echo "========================================"
 
           python - <<'PY'
 
@@ -128,19 +164,24 @@ jobs:
               "protobuf",
           ]
 
-          print("=" * 70)
-          print("INSTALLED PACKAGES")
-          print("=" * 70)
-
           for package in packages:
 
-              version = importlib.metadata.version(package)
+              try:
 
-              print(
-                  f"{package} = {version}"
-              )
+                  print(
+                      package,
+                      "=",
+                      importlib.metadata.version(package)
+                  )
 
-          print("=" * 70)
+              except Exception as e:
+
+                  print(
+                      package,
+                      "=",
+                      "ERROR",
+                      e
+                  )
 
           PY
 
@@ -154,28 +195,11 @@ jobs:
 
           python - <<'PY'
 
-          import importlib.metadata
+          import server
 
           print("=" * 70)
           print("SERVER TEST")
           print("=" * 70)
-
-          print(
-              "aiohttp:",
-              importlib.metadata.version("aiohttp")
-          )
-
-          print(
-              "TikTokLive:",
-              importlib.metadata.version("TikTokLive")
-          )
-
-          print(
-              "EulerApiSdk:",
-              importlib.metadata.version("EulerApiSdk")
-          )
-
-          import server
 
           print(
               "TikTokLive available:",
@@ -203,7 +227,7 @@ jobs:
 
 
       # ======================================================
-      # TEST PYTHON
+      # PYTHON SYNTAX
       # ======================================================
 
       - name: Test Python files
@@ -217,7 +241,7 @@ jobs:
 
 
       # ======================================================
-      # CLEAN OLD BUILDOZER CACHE
+      # CLEAN BUILDOZER
       # ======================================================
 
       - name: Clean Buildozer
@@ -231,10 +255,10 @@ jobs:
 
 
       # ======================================================
-      # SHOW BUILDOZER CONFIG
+      # SHOW CONFIG
       # ======================================================
 
-      - name: Show Buildozer configuration
+      - name: Show configuration
         run: |
 
           echo "========================================"
@@ -244,7 +268,7 @@ jobs:
           cat buildozer.spec
 
           echo "========================================"
-          echo "BUILD ENVIRONMENT"
+          echo "ENVIRONMENT"
           echo "========================================"
 
           python --version
@@ -255,7 +279,7 @@ jobs:
 
 
       # ======================================================
-      # BUILD APK
+      # BUILD
       # ======================================================
 
       - name: Build APK
@@ -282,7 +306,7 @@ jobs:
 
 
       # ======================================================
-      # UPLOAD APK
+      # UPLOAD
       # ======================================================
 
       - name: Upload APK

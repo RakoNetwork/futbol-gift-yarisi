@@ -7,7 +7,6 @@ Termux / Android ready
 from __future__ import annotations
 
 import asyncio
-import importlib
 import json
 from pathlib import Path
 
@@ -16,82 +15,111 @@ import aiohttp
 
 
 # ============================================================
-# TikTokLive / EulerApiSdk compatibility
+# TikTokLive / EulerApiSdk
 # ============================================================
-#
-# TikTokLive 6.6.6 kendi içinde:
-#
-# from EulerApiSdk.api.tik_tok_live import fetch_webcast_url
-#
-# kullanıyor.
-#
-# Bazı Android/p4a paketlemelerinde EulerApiSdk'nin
-# tik_tok_live/__init__.py içindeki export eksik kalabiliyor.
-#
-# Gerçek fetch_webcast_url alt modülünü bulup pakete bağlıyoruz.
-# SAHTE / dummy fonksiyon kullanılmıyor.
-# ============================================================
+
+EULER_AVAILABLE = False
+TIKTOK_AVAILABLE = False
+
+TikTokLiveClient = None
+
+ConnectEvent = None
+DisconnectEvent = None
+GiftEvent = None
+LikeEvent = None
+FollowEvent = None
+ShareEvent = None
+CommentEvent = None
+
 
 def prepare_euler_sdk():
+    """
+    TikTokLive 6.6.5 için EulerApiSdk kontrolü.
+
+    Burada SAHTE fetch_webcast_url oluşturulmuyor.
+
+    Önce gerçek EulerApiSdk modülünün import edilmesi denenir.
+    Android/p4a paketinde eksikse bunun açıkça loglanması sağlanır.
+    """
+
     try:
         import EulerApiSdk
-        import EulerApiSdk.api.tik_tok_live as ttl
 
-        print("[Euler] EulerApiSdk:", getattr(EulerApiSdk, "__version__", "unknown"))
-        print("[Euler] module:", getattr(ttl, "__file__", "unknown"))
-
-        # Normal durumda zaten mevcut.
-        if hasattr(ttl, "fetch_webcast_url"):
-            print("[Euler] fetch_webcast_url: OK")
-            return True
-
-        print("[Euler] fetch_webcast_url __init__ içinde yok")
-        print("[Euler] Alt modül yüklenmeye çalışılıyor...")
-
-        # Generated SDK'da gerçek endpoint modülü.
-        endpoint = importlib.import_module(
-            "EulerApiSdk.api.tik_tok_live.fetch_webcast_url"
+        version = getattr(
+            EulerApiSdk,
+            "__version__",
+            "unknown"
         )
 
-        fetch_func = getattr(endpoint, "fetch_webcast_url", None)
-
-        if fetch_func is None:
-            raise ImportError(
-                "EulerApiSdk.api.tik_tok_live.fetch_webcast_url "
-                "modülü bulundu fakat fetch_webcast_url yok."
-            )
-
-        # TikTokLive'in beklediği export'u oluştur.
-        ttl.fetch_webcast_url = fetch_func
-
-        print("[Euler] fetch_webcast_url export düzeltildi")
-        return True
-
-    except Exception as e:
         print(
-            "[Euler] CRITICAL:",
-            type(e).__name__,
-            str(e)
+            "[Euler] EulerApiSdk:",
+            version
         )
 
         try:
             import EulerApiSdk.api.tik_tok_live as ttl
+
             print(
-                "[Euler] tik_tok_live attrs:",
-                [
-                    x for x in dir(ttl)
-                    if not x.startswith("_")
-                ]
+                "[Euler] tik_tok_live:",
+                getattr(
+                    ttl,
+                    "__file__",
+                    "unknown"
+                )
             )
-        except Exception as e2:
+
+        except Exception as e:
+
             print(
-                "[Euler] module inspect failed:",
-                type(e2).__name__,
-                str(e2)
+                "[Euler] tik_tok_live import failed:",
+                type(e).__name__,
+                str(e)
             )
+
+            return False
+
+        # TikTokLive'in beklediği export mevcut mu?
+        if hasattr(
+            ttl,
+            "fetch_webcast_url"
+        ):
+
+            print(
+                "[Euler] fetch_webcast_url: OK"
+            )
+
+            return True
+
+        print(
+            "[Euler] WARNING: "
+            "fetch_webcast_url export bulunamadı"
+        )
+
+        print(
+            "[Euler] tik_tok_live attrs:",
+            [
+                x
+                for x in dir(ttl)
+                if not x.startswith("_")
+            ]
+        )
 
         return False
 
+    except Exception as e:
+
+        print(
+            "[Euler] import failed:",
+            type(e).__name__,
+            str(e)
+        )
+
+        return False
+
+
+# ============================================================
+# Euler kontrolü
+# ============================================================
 
 EULER_AVAILABLE = prepare_euler_sdk()
 
@@ -101,10 +129,6 @@ EULER_AVAILABLE = prepare_euler_sdk()
 # ============================================================
 
 try:
-    if not EULER_AVAILABLE:
-        raise ImportError(
-            "EulerApiSdk fetch_webcast_url hazırlanamadı."
-        )
 
     from TikTokLive import TikTokLiveClient
 
@@ -120,9 +144,11 @@ try:
 
     TIKTOK_AVAILABLE = True
 
-    print("[TikTokLive] import OK")
+    print(
+        "[TikTokLive] import OK"
+    )
 
-except Exception as _tiktok_import_error:
+except Exception as e:
 
     TIKTOK_AVAILABLE = False
 
@@ -138,9 +164,9 @@ except Exception as _tiktok_import_error:
 
     print(
         "[TikTokLive import failed]",
-        type(_tiktok_import_error).__name__,
+        type(e).__name__,
         ":",
-        str(_tiktok_import_error)
+        str(e)
     )
 
 
@@ -160,53 +186,41 @@ PLAYER_COUNT = 7
 
 GIFT_MAP = {
 
-    # 0 NƏRİMAN — Azerbaycan — Rose
     "rose": 0,
     "gül": 0,
     "gul": 0,
     "my first rose": 0,
     "rosa": 0,
 
-    # 1 ARDA — Türkiye — TikTok
     "tiktok": 1,
 
-    # 2 GOLOVIN — Rusya — Flame Heart
     "flame heart": 2,
     "flameheart": 2,
     "flame": 2,
 
-    # 3 CHHETRI — Hindistan — GG
     "gg": 3,
 
-    # 4 PULISIC — ABD — Ice Cream
     "ice cream cone": 4,
     "ice cream": 4,
     "icecream": 4,
     "dondurma": 4,
 
-    # 5 MESSI — Arjantin — Football
     "football": 5,
     "futbol": 5,
     "soccer": 5,
     "soccer ball": 5,
 
-    # 6 RONALDO — Portekiz — Heart Puff
     "heart puff": 6,
     "heartpuff": 6,
 }
 
 
 GIFT_POINTS = 1
-
 FOLLOW_POINTS = 2
-
 LIKE_POINTS = 1
-
 LIKE_EVERY = 20
 
-
 AZERBAIJAN_PLAYER = 0
-
 TURKEY_PLAYER = 1
 
 
@@ -217,7 +231,6 @@ TURKEY_PLAYER = 1
 clients = set()
 
 total_likes = 0
-
 like_points_given = 0
 
 supporters = {}
@@ -225,11 +238,9 @@ supporters = {}
 scores = [0] * PLAYER_COUNT
 
 tiktok_client = None
-
 tiktok_task = None
 
 current_user = ""
-
 
 ROOT = Path(__file__).parent.resolve()
 
@@ -282,10 +293,10 @@ async def broadcast_top():
         "type": "top_supporters",
         "list": [
             {
-                "username": u,
-                "coins": c
+                "username": username,
+                "coins": coins
             }
-            for u, c in top
+            for username, coins in top
         ]
     })
 
@@ -332,33 +343,45 @@ def _extract_avatar(user) -> str | None:
         if isinstance(obj, (list, tuple)):
 
             for x in obj[:8]:
-                walk(x, depth + 1)
+                walk(
+                    x,
+                    depth + 1
+                )
 
             return
 
         if isinstance(obj, dict):
 
             for v in obj.values():
-                walk(v, depth + 1)
+                walk(
+                    v,
+                    depth + 1
+                )
 
             return
 
-        for meth in (
+        for method_name in (
             "model_dump",
             "dict",
             "as_dict",
             "to_dict"
         ):
 
-            fn = getattr(obj, meth, None)
+            fn = getattr(
+                obj,
+                method_name,
+                None
+            )
 
             if callable(fn):
 
                 try:
+
                     walk(
                         fn(),
                         depth + 1
                     )
+
                     return
 
                 except Exception:
@@ -373,9 +396,12 @@ def _extract_avatar(user) -> str | None:
         if isinstance(d, dict):
 
             for v in d.values():
-                walk(v, depth + 1)
+                walk(
+                    v,
+                    depth + 1
+                )
 
-        for a in (
+        for attr in (
             "url_list",
             "urlList",
             "urls",
@@ -390,7 +416,11 @@ def _extract_avatar(user) -> str | None:
             try:
 
                 walk(
-                    getattr(obj, a, None),
+                    getattr(
+                        obj,
+                        attr,
+                        None
+                    ),
                     depth + 1
                 )
 
@@ -399,13 +429,13 @@ def _extract_avatar(user) -> str | None:
 
     walk(user)
 
-    for u in found:
+    for url in found:
 
         if (
-            isinstance(u, str)
-            and u.startswith("http")
+            isinstance(url, str)
+            and url.startswith("http")
         ):
-            return u
+            return url
 
     if not _avatar_debug_done:
 
@@ -427,7 +457,7 @@ def _extract_avatar(user) -> str | None:
             )
 
             print(
-                "[Avatar debug] found urls:",
+                "[Avatar debug] found:",
                 found[:3]
             )
 
@@ -445,7 +475,7 @@ def _extract_avatar(user) -> str | None:
 # TikTok Events
 # ============================================================
 
-async def on_connect(event: ConnectEvent):
+async def on_connect(event):
 
     room_id = getattr(
         tiktok_client,
@@ -453,21 +483,27 @@ async def on_connect(event: ConnectEvent):
         None
     )
 
+    unique_id = getattr(
+        event,
+        "unique_id",
+        current_user
+    )
+
     print(
         f"[TikTok] LIVE connected "
-        f"@{event.unique_id} "
+        f"@{unique_id} "
         f"room={room_id}"
     )
 
     await broadcast({
         "type": "status",
-        "message": f"LIVE @{event.unique_id}",
+        "message": f"LIVE @{unique_id}",
         "connected": True,
-        "username": event.unique_id
+        "username": unique_id
     })
 
 
-async def on_disconnect(event: DisconnectEvent):
+async def on_disconnect(event):
 
     print(
         "[TikTok] Disconnected"
@@ -480,7 +516,7 @@ async def on_disconnect(event: DisconnectEvent):
     })
 
 
-async def on_gift(event: GiftEvent):
+async def on_gift(event):
 
     try:
 
@@ -493,15 +529,14 @@ async def on_gift(event: GiftEvent):
         if gift is None:
             return
 
-        username = "user"
-
-        avatar = None
-
         user = getattr(
             event,
             "user",
             None
         )
+
+        username = "user"
+        avatar = None
 
         if user is not None:
 
@@ -562,8 +597,10 @@ async def on_gift(event: GiftEvent):
 
         try:
             count = int(count)
-
         except Exception:
+            count = 1
+
+        if count < 1:
             count = 1
 
         gift_type = getattr(
@@ -625,29 +662,15 @@ async def on_gift(event: GiftEvent):
             and not repeat_end
         )
 
-        streak_tag = (
-            " [streak]"
-            if is_mid_streak
-            else (
-                " [end]"
-                if (
-                    streakable
-                    and not streaking
-                )
-                else ""
-            )
-        )
+        if is_mid_streak:
+            return
 
         print(
             f"[Gift] {username} "
             f"→ {gift_name} "
-            f"x{count}"
-            f"{streak_tag} "
+            f"x{count} "
             f"({coins}💎)"
         )
-
-        if is_mid_streak:
-            return
 
         supporters[username] = (
             supporters.get(
@@ -689,20 +712,7 @@ async def on_gift(event: GiftEvent):
 
         scores[player_id] += points
 
-        print(
-            f"       → P{player_id} "
-            f"(+{points}) "
-            f"score={scores[player_id]} "
-            f"AD={username}"
-            + (
-                " AVATAR=ok"
-                if avatar
-                else " AVATAR=yox"
-            )
-            + f" gift={gift_name!r}"
-        )
-
-        payload = {
+        await broadcast({
 
             "type": "gift",
 
@@ -727,23 +737,20 @@ async def on_gift(event: GiftEvent):
             "avatar": avatar or "",
 
             "sound": True
-        }
-
-        await broadcast(
-            payload
-        )
+        })
 
         await broadcast_top()
 
     except Exception as e:
 
         print(
-            "Gift error:",
-            e
+            "[Gift] error:",
+            type(e).__name__,
+            str(e)
         )
 
 
-async def on_like(event: LikeEvent):
+async def on_like(event):
 
     global total_likes
     global like_points_given
@@ -766,11 +773,7 @@ async def on_like(event: LikeEvent):
 
         try:
 
-            amount = (
-                int(amount)
-                if amount is not None
-                else 1
-            )
+            amount = int(amount)
 
         except Exception:
 
@@ -799,15 +802,14 @@ async def on_like(event: LikeEvent):
 
             room_total = total_likes
 
-        username = "user"
-
-        avatar = None
-
         user = getattr(
             event,
             "user",
             None
         )
+
+        username = "user"
+        avatar = None
 
         if user is not None:
 
@@ -863,15 +865,6 @@ async def on_like(event: LikeEvent):
                 * LIKE_POINTS
             )
 
-            print(
-                f"[Like] {username} "
-                f"→ {total_likes} like "
-                f"→ Azerbaycan "
-                f"+{new_points} puan "
-                f"(toplam: "
-                f"{scores[AZERBAIJAN_PLAYER]})"
-            )
-
             await broadcast({
 
                 "type": "gift",
@@ -910,23 +903,23 @@ async def on_like(event: LikeEvent):
 
         print(
             "[Like] error:",
-            e
+            type(e).__name__,
+            str(e)
         )
 
 
-async def on_follow(event: FollowEvent):
+async def on_follow(event):
 
     try:
-
-        username = "user"
-
-        avatar = None
 
         user = getattr(
             event,
             "user",
             None
         )
+
+        username = "user"
+        avatar = None
 
         if user is not None:
 
@@ -951,13 +944,6 @@ async def on_follow(event: FollowEvent):
         pid = TURKEY_PLAYER
 
         scores[pid] += FOLLOW_POINTS
-
-        print(
-            f"[Follow] @{username} "
-            f"→ Türkiye "
-            f"+{FOLLOW_POINTS} puan "
-            f"(toplam: {scores[pid]})"
-        )
 
         await broadcast({
 
@@ -1001,12 +987,13 @@ async def on_follow(event: FollowEvent):
     except Exception as e:
 
         print(
-            "Follow error:",
-            e
+            "[Follow] error:",
+            type(e).__name__,
+            str(e)
         )
 
 
-async def on_share(event: ShareEvent):
+async def on_share(event):
 
     try:
 
@@ -1044,12 +1031,13 @@ async def on_share(event: ShareEvent):
     except Exception as e:
 
         print(
-            "Share error:",
-            e
+            "[Share] error:",
+            type(e).__name__,
+            str(e)
         )
 
 
-async def on_comment(event: CommentEvent):
+async def on_comment(event):
 
     try:
 
@@ -1095,8 +1083,9 @@ async def on_comment(event: CommentEvent):
     except Exception as e:
 
         print(
-            "Comment error:",
-            e
+            "[Comment] error:",
+            type(e).__name__,
+            str(e)
         )
 
 
@@ -1109,23 +1098,20 @@ async def stop_tiktok():
     global tiktok_client
     global tiktok_task
 
-    if tiktok_client:
+    if tiktok_client is not None:
 
         try:
 
             await tiktok_client.disconnect()
 
-        except Exception:
+        except Exception as e:
 
-            try:
+            print(
+                "[TikTok] disconnect:",
+                e
+            )
 
-                await tiktok_client.stop()
-
-            except Exception:
-                pass
-
-        tiktok_client = None
-
+    tiktok_client = None
     tiktok_task = None
 
 
@@ -1142,7 +1128,7 @@ async def start_tiktok(username: str):
             "type": "status",
 
             "message":
-                "TikTokLive quraşdırılmayıb.",
+                "TikTokLive import edilemedi.",
 
             "connected": False
         })
@@ -1182,12 +1168,11 @@ async def start_tiktok(username: str):
     })
 
     print(
-        f"[TikTok] Checking is_live "
-        f"@{username} ..."
+        f"[TikTok] Checking is_live @{username}"
     )
 
     client = TikTokLiveClient(
-        unique_id=f"@{username}"
+        unique_id=username
     )
 
     try:
@@ -1196,11 +1181,12 @@ async def start_tiktok(username: str):
 
     except Exception as e:
 
-        err = str(e)
+        error = str(e)
 
         print(
-            f"[TikTok] is_live error: "
-            f"{err}"
+            "[TikTok] is_live error:",
+            type(e).__name__,
+            error
         )
 
         await broadcast({
@@ -1209,21 +1195,16 @@ async def start_tiktok(username: str):
 
             "message":
                 f"Yoxlama xətası: "
-                f"{err[:120]}",
+                f"{error[:150]}",
 
             "connected": False,
 
-            "error": err
+            "error": error
         })
 
         return
 
     if not is_live:
-
-        print(
-            f"[TikTok] @{username} "
-            f"is NOT live"
-        )
 
         await broadcast({
 
@@ -1237,11 +1218,6 @@ async def start_tiktok(username: str):
         })
 
         return
-
-    print(
-        f"[TikTok] @{username} "
-        f"IS LIVE — connecting ..."
-    )
 
     await broadcast({
 
@@ -1301,20 +1277,21 @@ async def start_tiktok(username: str):
         tiktok_task = task
 
         print(
-            f"[TikTok] start() OK "
-            f"@{username}"
+            f"[TikTok] start() OK @{username}"
         )
 
     except Exception as e:
 
-        err = str(e)
+        error = str(e)
 
         print(
-            f"[TikTok] start/connect failed: "
-            f"{err}"
+            "[TikTok] start/connect failed:",
+            type(e).__name__,
+            error
         )
 
         tiktok_client = None
+        tiktok_task = None
 
         await broadcast({
 
@@ -1322,11 +1299,11 @@ async def start_tiktok(username: str):
 
             "message":
                 f"Qoşulma xətası: "
-                f"{err[:140]}",
+                f"{error[:150]}",
 
             "connected": False,
 
-            "error": err
+            "error": error
         })
 
 
@@ -1364,10 +1341,10 @@ async def ws_handler(request):
 
             "supporters": [
                 {
-                    "username": u,
-                    "coins": c
+                    "username": username,
+                    "coins": coins
                 }
-                for u, c
+                for username, coins
                 in sorted(
                     supporters.items(),
                     key=lambda x: -x[1]
@@ -1383,7 +1360,8 @@ async def ws_handler(request):
             "username":
                 current_user
 
-        })
+        },
+        ensure_ascii=False)
     )
 
     try:
@@ -1400,13 +1378,14 @@ async def ws_handler(request):
                 )
 
             except Exception:
+
                 continue
 
-            t = data.get(
+            message_type = data.get(
                 "type"
             )
 
-            if t == "set_user":
+            if message_type == "set_user":
 
                 username = (
                     data.get(
@@ -1437,7 +1416,7 @@ async def ws_handler(request):
                         "connected": False
                     })
 
-            elif t == "gift":
+            elif message_type == "gift":
 
                 try:
 
@@ -1531,16 +1510,14 @@ async def ws_handler(request):
 
                 await broadcast_top()
 
-            elif t == "reset_scores":
+            elif message_type == "reset_scores":
 
                 for i in range(
                     PLAYER_COUNT
                 ):
-
                     scores[i] = 0
 
                 total_likes = 0
-
                 like_points_given = 0
 
                 await broadcast_scores()
@@ -1563,20 +1540,20 @@ async def ws_handler(request):
 
 async def index(request):
 
-    for name in (
+    for filename in (
         "football_gift_race_fixed.html",
         "index.html"
     ):
 
-        p = ROOT / name
+        path = ROOT / filename
 
-        if p.is_file():
+        if path.is_file():
 
-            resp = web.FileResponse(
-                p
+            response = web.FileResponse(
+                path
             )
 
-            resp.headers[
+            response.headers[
                 "Cache-Control"
             ] = (
                 "no-store, "
@@ -1585,11 +1562,11 @@ async def index(request):
                 "max-age=0"
             )
 
-            resp.headers[
+            response.headers[
                 "Pragma"
             ] = "no-cache"
 
-            return resp
+            return response
 
     return web.Response(
         text=
@@ -1618,13 +1595,13 @@ def create_app():
         index
     )
 
-    if (
-        ROOT / "assets"
-    ).is_dir():
+    assets = ROOT / "assets"
+
+    if assets.is_dir():
 
         app.router.add_static(
             "/assets/",
-            ROOT / "assets"
+            assets
         )
 
     return app
@@ -1653,29 +1630,27 @@ async def main():
     await site.start()
 
     print("=" * 50)
-
     print(
         " Football Gift Race + TikTok Live"
     )
-
     print(
         f" http://localhost:{PORT}"
     )
-
     print("=" * 50)
 
-    if not EULER_AVAILABLE:
+    print(
+        "[Status] EulerApiSdk:",
+        "OK"
+        if EULER_AVAILABLE
+        else "UNAVAILABLE"
+    )
 
-        print(
-            " WARNING: EulerApiSdk "
-            "fetch_webcast_url unavailable"
-        )
-
-    if not TIKTOK_AVAILABLE:
-
-        print(
-            " WARNING: TikTokLive not installed"
-        )
+    print(
+        "[Status] TikTokLive:",
+        "OK"
+        if TIKTOK_AVAILABLE
+        else "UNAVAILABLE"
+    )
 
     while True:
 

@@ -6,16 +6,41 @@ Termux / Android ready
 
 from __future__ import annotations
 
-# --- EulerApiSdk uyumluluk katmanı (sign_webcast_url → fetch_webcast_url) ---
-try:
-    import EulerApiSdk.api.tik_tok_live as _ttl
-    if not hasattr(_ttl, "sign_webcast_url") and hasattr(_ttl, "fetch_webcast_url"):
-        _ttl.sign_webcast_url = _ttl.fetch_webcast_url
-        print("[Compat] sign_webcast_url → fetch_webcast_url alias eklendi")
-except Exception as e:
-    print(f"[Compat] Alias eklenemedi: {e}")
-# --------------------------------------------------------------------------
+# --- Güçlü EulerApiSdk uyumluluk katmanı ---
+import sys
+from types import ModuleType
 
+try:
+    # Önce gerçek modülü yüklemeyi dene
+    import EulerApiSdk.api.tik_tok_live as _ttl
+    
+    if not hasattr(_ttl, "sign_webcast_url"):
+        # fetch_webcast_url varsa onu kullan
+        if hasattr(_ttl, "fetch_webcast_url"):
+            _ttl.sign_webcast_url = _ttl.fetch_webcast_url
+            print("[Compat] sign_webcast_url = fetch_webcast_url yapıldı")
+        else:
+            # Hiçbiri yoksa boş bir sahte fonksiyon koy (sadece import’u geçsin diye)
+            def _dummy_sign(*args, **kwargs):
+                raise RuntimeError("sign_webcast_url bulunamadı")
+            _ttl.sign_webcast_url = _dummy_sign
+            print("[Compat] Dummy sign_webcast_url eklendi")
+            
+except Exception as e:
+    print(f"[Compat] Hata: {type(e).__name__}: {e}")
+    
+    # Modül hiç yoksa sahte modül oluştur
+    try:
+        fake = ModuleType("EulerApiSdk.api.tik_tok_live")
+        def _dummy(*args, **kwargs):
+            raise RuntimeError("EulerApiSdk eksik")
+        fake.sign_webcast_url = _dummy
+        fake.fetch_webcast_url = _dummy
+        sys.modules["EulerApiSdk.api.tik_tok_live"] = fake
+        print("[Compat] Sahte EulerApiSdk.api.tik_tok_live oluşturuldu")
+    except Exception as e2:
+        print(f"[Compat] Sahte modül de oluşturulamadı: {e2}")
+# ------------------------------------------
 import asyncio
 import json
 import os

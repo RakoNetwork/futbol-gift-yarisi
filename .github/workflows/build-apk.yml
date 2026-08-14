@@ -1,246 +1,176 @@
 name: Build APK
 
 on:
-
   push:
     branches:
       - main
+      - master
 
   workflow_dispatch:
 
-
 jobs:
-
   build:
-
     name: Build Android APK
-
     runs-on: ubuntu-22.04
 
-    timeout-minutes: 90
-
+    timeout-minutes: 60
 
     steps:
 
-      # ======================================================
+      # =====================================================
       # CHECKOUT
-      # ======================================================
+      # =====================================================
 
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # ======================================================
+      # =====================================================
       # PYTHON
-      # ======================================================
+      # =====================================================
 
       - name: Setup Python
         uses: actions/setup-python@v5
-
         with:
           python-version: "3.11"
 
 
-      # ======================================================
+      # =====================================================
       # JAVA
-      # ======================================================
+      # =====================================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
-
         with:
           distribution: temurin
           java-version: "17"
 
 
-      # ======================================================
-      # SYSTEM PACKAGES
-      # ======================================================
+      # =====================================================
+      # SYSTEM DEPENDENCIES
+      # =====================================================
 
-      - name: Install system packages
+      - name: Install system dependencies
         run: |
-
           sudo apt-get update
 
           sudo apt-get install -y \
+            build-essential \
             git \
             zip \
             unzip \
-            build-essential \
             autoconf \
             automake \
             libtool \
             pkg-config \
-            cmake \
-            libffi-dev \
-            libssl-dev \
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libtinfo5
+            libtinfo5 \
+            cmake \
+            libffi-dev \
+            libssl-dev
 
 
-      # ======================================================
-      # BUILD TOOLS
-      # ======================================================
-
-      - name: Install Buildozer
-        run: |
-
-          python -m pip install --upgrade pip setuptools wheel
-
-          python -m pip install \
-            buildozer \
-            cython==0.29.36 \
-            virtualenv
-
-
-      # ======================================================
-      # INSTALL EXACT PYTHON VERSIONS
-      # ======================================================
+      # =====================================================
+      # PYTHON DEPENDENCIES
+      # =====================================================
 
       - name: Install Python dependencies
         run: |
+          python -m pip install --upgrade pip setuptools wheel
 
-          python -m pip install \
+          pip install --no-cache-dir \
+            "aiohttp>=3.9,<4" \
             "TikTokLive==6.6.5" \
-            "EulerApiSdk==0.0.3"
+            "EulerApiSdk==0.0.3" \
+            "httpx>=0.26,<0.29" \
+            "pyee>=9.0.4" \
+            "ffmpy>=0.3.0" \
+            "websockets_proxy==0.1.3" \
+            "betterproto==2.0.0b7" \
+            "async-timeout>=4.0.3" \
+            "mashumaro>=3.5" \
+            "protobuf3-to-dict>=0.1.5" \
+            "protobuf>=3.19.4"
 
 
-      # ======================================================
-      # VERIFY EULER
-      # ======================================================
+      # =====================================================
+      # VERIFY DEPENDENCIES
+      # =====================================================
 
-      - name: Verify EulerApiSdk
+      - name: Verify TikTok dependencies
         run: |
-
           python - <<'PY'
+          import importlib.metadata
 
-          import importlib.metadata as metadata
-          import inspect
-
-          from EulerApiSdk.api.tik_tok_live import sign_webcast_url
-
-          from EulerApiSdk.models.sign_tik_tok_url_body import (
-              SignTikTokUrlBody
-          )
-
-          print("=" * 70)
-          print("EULER SDK")
-          print("=" * 70)
-
-          print(
-              "Version:",
-              metadata.version("EulerApiSdk")
-          )
-
-          print(
-              "sign_webcast_url:",
-              sign_webcast_url
-          )
-
-          print(
-              "asyncio:",
-              inspect.signature(
-                  sign_webcast_url.asyncio
-              )
-          )
-
-          print(
-              "sync:",
-              inspect.signature(
-                  sign_webcast_url.sync
-              )
-          )
-
-          print(
-              "Body:",
-              inspect.signature(
-                  SignTikTokUrlBody
-              )
-          )
+          packages = [
+              "aiohttp",
+              "TikTokLive",
+              "EulerApiSdk",
+              "httpx",
+              "pyee",
+              "ffmpy",
+              "websockets_proxy",
+              "betterproto",
+              "async-timeout",
+              "mashumaro",
+              "protobuf3-to-dict",
+              "protobuf",
+          ]
 
           print("=" * 70)
-          print("EULER 0.0.3 OK")
+          print("INSTALLED PACKAGES")
           print("=" * 70)
 
+          for package in packages:
+              try:
+                  print(
+                      package,
+                      "=",
+                      importlib.metadata.version(package)
+                  )
+              except Exception as e:
+                  print(
+                      package,
+                      "ERROR:",
+                      e
+                  )
+                  raise
+
+          print("=" * 70)
           PY
 
 
-      # ======================================================
-      # VERIFY TIKTOKLIVE
-      # ======================================================
-
-      - name: Verify TikTokLive
-        run: |
-
-          python - <<'PY'
-
-          import importlib.metadata as metadata
-          import inspect
-
-          from TikTokLive import TikTokLiveClient
-
-          from TikTokLive.events import (
-              ConnectEvent,
-              DisconnectEvent,
-              GiftEvent,
-              LikeEvent,
-              FollowEvent,
-              ShareEvent,
-              CommentEvent,
-          )
-
-          print("=" * 70)
-          print("TIKTOKLIVE")
-          print("=" * 70)
-
-          print(
-              "Version:",
-              metadata.version("TikTokLive")
-          )
-
-          print(
-              "Client:",
-              TikTokLiveClient
-          )
-
-          print(
-              "Client signature:",
-              inspect.signature(
-                  TikTokLiveClient
-              )
-          )
-
-          print("ConnectEvent:", ConnectEvent)
-          print("DisconnectEvent:", DisconnectEvent)
-          print("GiftEvent:", GiftEvent)
-          print("LikeEvent:", LikeEvent)
-          print("FollowEvent:", FollowEvent)
-          print("ShareEvent:", ShareEvent)
-          print("CommentEvent:", CommentEvent)
-
-          print("=" * 70)
-          print("TIKTOKLIVE 6.6.5 OK")
-          print("=" * 70)
-
-          PY
-
-
-      # ======================================================
-      # VERIFY SERVER
-      # ======================================================
+      # =====================================================
+      # TEST SERVER
+      # =====================================================
 
       - name: Test server
         run: |
-
           python - <<'PY'
-
-          import server
+          import importlib.metadata
 
           print("=" * 70)
           print("SERVER TEST")
           print("=" * 70)
+
+          print(
+              "aiohttp:",
+              importlib.metadata.version("aiohttp")
+          )
+
+          print(
+              "TikTokLive:",
+              importlib.metadata.version("TikTokLive")
+          )
+
+          print(
+              "EulerApiSdk:",
+              importlib.metadata.version("EulerApiSdk")
+          )
+
+          import server
 
           print(
               "TikTokLive available:",
@@ -262,77 +192,65 @@ jobs:
           print("=" * 70)
           print("SERVER OK")
           print("=" * 70)
-
           PY
 
 
-      # ======================================================
-      # BUILDOZER CACHE
-      # ======================================================
+      # =====================================================
+      # TEST MAIN
+      # =====================================================
 
-      - name: Cache Buildozer
-        uses: actions/cache@v4
+      - name: Test main.py
+        run: |
+          python -m py_compile main.py
+          python -m py_compile server.py
 
-        with:
-          path: |
-            .buildozer
-            ~/.buildozer
-
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-
-          restore-keys: |
-            ${{ runner.os }}-buildozer-
+          echo "Python syntax OK"
 
 
-      # ======================================================
+      # =====================================================
+      # INSTALL BUILDOZER
+      # =====================================================
+
+      - name: Install Buildozer
+        run: |
+          pip install --no-cache-dir \
+            "buildozer>=1.5.0"
+
+
+      # =====================================================
       # BUILD APK
-      # ======================================================
+      # =====================================================
 
       - name: Build APK
         run: |
+          buildozer android debug
 
-          yes | buildozer android debug
 
-
-      # ======================================================
+      # =====================================================
       # FIND APK
-      # ======================================================
+      # =====================================================
 
       - name: Find APK
-        id: apk
-        shell: bash
-
         run: |
+          echo "========================================"
+          echo "APK FILES"
+          echo "========================================"
 
-          APK_PATH="$(find bin -type f -name '*.apk' | head -n 1)"
-
-          if [ -z "$APK_PATH" ]; then
-
-            echo "APK tapılmadı."
-
-            echo "bin contents:"
-
-            find bin -type f || true
-
-            exit 1
-
-          fi
-
-          echo "APK tapıldı:"
-          echo "$APK_PATH"
-
-          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          find . -type f \
+            \( -name "*.apk" -o -name "*.aab" \) \
+            -print
 
 
-      # ======================================================
+      # =====================================================
       # UPLOAD APK
-      # ======================================================
+      # =====================================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
-
         with:
+          name: futbol-gift-yarisi-apk
+          path: |
+            bin/*.apk
+            bin/*.aab
 
-          name: futbolgiftyarisi-apk
-
-          path: ${{ steps.apk.outputs.apk_path }}
+          if-no-files-found: error

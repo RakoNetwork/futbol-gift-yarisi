@@ -18,18 +18,15 @@ from aiohttp import web
 import aiohttp
 
 try:
-    # UYUMLULUK YAMASI: TikTokLive'ın kurulu sürümü, EulerApiSdk'nin
-    # `sign_webcast_url` diye bir fonksiyon içerdiğini varsayıyor, ama
-    # PyPI'deki hiçbir EulerApiSdk sürümünde bu isim yok — sadece
-    # `fetch_webcast_url` var (muhtemelen TikTokLive, henüz yayınlanmamış
-    # bir EulerApiSdk sürümüne göre yazılmış). TikTokLive'ı import etmeden
-    # önce eksik ismi ekleyerek bu uyumsuzluğu aşıyoruz.
-    try:
-        import EulerApiSdk.api.tik_tok_live as _euler_ttl_module
-        if not hasattr(_euler_ttl_module, "sign_webcast_url") and hasattr(_euler_ttl_module, "fetch_webcast_url"):
-            _euler_ttl_module.sign_webcast_url = _euler_ttl_module.fetch_webcast_url
-    except Exception as _shim_error:
-        print(f"[EulerApiSdk shim atlandı] {type(_shim_error).__name__}: {_shim_error}")
+    # UYUMLULUK YAMASI (v2): fetch_webcast_url bir attribute değil, ayrı bir
+    # alt modül dosyası — önce onu doğrudan import edip paket objesine
+    # 'sign_webcast_url' adıyla elle attribute olarak ekliyoruz.
+    from EulerApiSdk.api.tik_tok_live import fetch_webcast_url as _fetch_webcast_url_submodule
+    import EulerApiSdk.api.tik_tok_live as _euler_ttl_module
+    if not hasattr(_euler_ttl_module, "sign_webcast_url"):
+        _euler_ttl_module.sign_webcast_url = _fetch_webcast_url_submodule
+except Exception as _shim_error:
+    print(f"[EulerApiSdk shim atlandı] {type(_shim_error).__name__}: {_shim_error}")
 
     from TikTokLive import TikTokLiveClient
     from TikTokLive.events import (

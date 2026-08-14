@@ -8,26 +8,30 @@ on:
 
   workflow_dispatch:
 
+
 jobs:
+
   build:
+
     name: Build Android APK
+
     runs-on: ubuntu-22.04
 
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
 
-      # =====================================================
+      # ======================================================
       # CHECKOUT
-      # =====================================================
+      # ======================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # =====================================================
+      # ======================================================
       # PYTHON
-      # =====================================================
+      # ======================================================
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -35,9 +39,9 @@ jobs:
           python-version: "3.11"
 
 
-      # =====================================================
+      # ======================================================
       # JAVA
-      # =====================================================
+      # ======================================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -46,12 +50,13 @@ jobs:
           java-version: "17"
 
 
-      # =====================================================
+      # ======================================================
       # SYSTEM DEPENDENCIES
-      # =====================================================
+      # ======================================================
 
       - name: Install system dependencies
         run: |
+
           sudo apt-get update
 
           sudo apt-get install -y \
@@ -72,20 +77,22 @@ jobs:
             libssl-dev
 
 
-      # =====================================================
-      # PYTHON DEPENDENCIES
-      # =====================================================
+      # ======================================================
+      # PYTHON BUILD DEPENDENCIES
+      # ======================================================
 
       - name: Install Python dependencies
         run: |
+
           python -m pip install --upgrade pip setuptools wheel
 
           pip install --no-cache-dir \
+            "buildozer>=1.5.0" \
             "aiohttp>=3.9,<4" \
             "TikTokLive==6.6.5" \
             "EulerApiSdk==0.0.3" \
             "httpx>=0.26,<0.29" \
-            "pyee>=9.0.4" \
+            "pyee==13.0.1" \
             "ffmpy>=0.3.0" \
             "websockets_proxy==0.1.3" \
             "betterproto==2.0.0b7" \
@@ -95,13 +102,15 @@ jobs:
             "protobuf>=3.19.4"
 
 
-      # =====================================================
-      # VERIFY DEPENDENCIES
-      # =====================================================
+      # ======================================================
+      # VERIFY PACKAGES
+      # ======================================================
 
-      - name: Verify TikTok dependencies
+      - name: Verify dependencies
         run: |
+
           python - <<'PY'
+
           import importlib.metadata
 
           packages = [
@@ -124,31 +133,27 @@ jobs:
           print("=" * 70)
 
           for package in packages:
-              try:
-                  print(
-                      package,
-                      "=",
-                      importlib.metadata.version(package)
-                  )
-              except Exception as e:
-                  print(
-                      package,
-                      "ERROR:",
-                      e
-                  )
-                  raise
+
+              version = importlib.metadata.version(package)
+
+              print(
+                  f"{package} = {version}"
+              )
 
           print("=" * 70)
+
           PY
 
 
-      # =====================================================
+      # ======================================================
       # TEST SERVER
-      # =====================================================
+      # ======================================================
 
       - name: Test server
         run: |
+
           python - <<'PY'
+
           import importlib.metadata
 
           print("=" * 70)
@@ -178,6 +183,7 @@ jobs:
           )
 
           if not server.TIKTOK_AVAILABLE:
+
               raise SystemExit(
                   "TikTokLive import failed"
               )
@@ -192,63 +198,100 @@ jobs:
           print("=" * 70)
           print("SERVER OK")
           print("=" * 70)
+
           PY
 
 
-      # =====================================================
-      # TEST MAIN
-      # =====================================================
+      # ======================================================
+      # TEST PYTHON
+      # ======================================================
 
-      - name: Test main.py
+      - name: Test Python files
         run: |
+
           python -m py_compile main.py
+
           python -m py_compile server.py
 
           echo "Python syntax OK"
 
 
-      # =====================================================
-      # INSTALL BUILDOZER
-      # =====================================================
+      # ======================================================
+      # CLEAN OLD BUILDOZER CACHE
+      # ======================================================
 
-      - name: Install Buildozer
+      - name: Clean Buildozer
         run: |
-          pip install --no-cache-dir \
-            "buildozer>=1.5.0"
+
+          rm -rf .buildozer
+
+          rm -rf bin
+
+          echo "Build cache cleaned"
 
 
-      # =====================================================
+      # ======================================================
+      # SHOW BUILDOZER CONFIG
+      # ======================================================
+
+      - name: Show Buildozer configuration
+        run: |
+
+          echo "========================================"
+          echo "BUILDOZER SPEC"
+          echo "========================================"
+
+          cat buildozer.spec
+
+          echo "========================================"
+          echo "BUILD ENVIRONMENT"
+          echo "========================================"
+
+          python --version
+
+          java -version
+
+          buildozer --version
+
+
+      # ======================================================
       # BUILD APK
-      # =====================================================
+      # ======================================================
 
       - name: Build APK
         run: |
-          buildozer android debug
+
+          buildozer -v android debug
 
 
-      # =====================================================
+      # ======================================================
       # FIND APK
-      # =====================================================
+      # ======================================================
 
       - name: Find APK
         run: |
+
           echo "========================================"
           echo "APK FILES"
           echo "========================================"
 
-          find . -type f \
+          find . \
+            -type f \
             \( -name "*.apk" -o -name "*.aab" \) \
             -print
 
 
-      # =====================================================
+      # ======================================================
       # UPLOAD APK
-      # =====================================================
+      # ======================================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
+
         with:
+
           name: futbol-gift-yarisi-apk
+
           path: |
             bin/*.apk
             bin/*.aab

@@ -248,7 +248,7 @@ jobs:
               "mashumaro",
               "protobuf",
               "protobuf3-to-dict",
-              "TikTokLive",
+              "TikTokLive-fix",
           ]
 
           for package in packages:

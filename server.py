@@ -4,56 +4,34 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 from pathlib import Path
-from types import ModuleType
 
 import aiohttp
 from aiohttp import web
 
+
 # ============================================================
-# GÜCLÜ MOCK – EulerApiSdk-nin bütün alt modullarını tutur
+# EulerApiSdk avtomatik uyğunlaşdırma
+# (TikTokLive-dən ƏVVƏL olmalıdır)
 # ============================================================
+try:
+    import EulerApiSdk.api.tik_tok_live as _ttl
 
-def fetch_webcast_url(*args, **kwargs):
-    print("⚠️ fetch_webcast_url MOCK çağırıldı!")
-    print("args:", args)
-    print("kwargs:", kwargs)
-    # İstədiyiniz cavabı qaytarın
-    return {"url": "https://eulerstream.com"}
+    # Real faylları yükləyirik
+    import EulerApiSdk.api.tik_tok_live.sign_webcast_url as _sign
+    import EulerApiSdk.api.tik_tok_live.fetch_webcast_url as _fetch
 
+    # "from EulerApiSdk.api.tik_tok_live import sign_webcast_url" işləsin deyə
+    _ttl.sign_webcast_url = _sign
+    _ttl.fetch_webcast_url = _fetch
 
-class FakeModule(ModuleType):
-    """Hər cür alt modul sorğusuna cavab verən saxta modul"""
-    def __init__(self, name):
-        super().__init__(name)
-        self.__path__ = []          # paket kimi görünsün
-        self.__package__ = name
-
-    def __getattr__(self, name):
-        # Əsas funksiyanı tuturuq
-        if name in ("fetch_webcast_url", "sign_webcast_url"):
-            return fetch_webcast_url
-
-        # Hər hansı digər atribut/modul sorğusu üçün yeni FakeModule qaytarırıq
-        full_name = f"{self.__name__}.{name}"
-        if full_name not in sys.modules:
-            fake = FakeModule(full_name)
-            sys.modules[full_name] = fake
-        return sys.modules[full_name]
-
-
-# Əsas paketləri qeydiyyatdan keçiririk
-euler = FakeModule("EulerApiSdk")
-sys.modules["EulerApiSdk"] = euler
-sys.modules["EulerApiSdk.api"] = FakeModule("EulerApiSdk.api")
-sys.modules["EulerApiSdk.api.tik_tok_live"] = FakeModule("EulerApiSdk.api.tik_tok_live")
-sys.modules["EulerApiSdk.models"] = FakeModule("EulerApiSdk.models")
-sys.modules["EulerApiSdk.types"] = FakeModule("EulerApiSdk.types")
-
-print("=" * 70)
-print("[MOCK] EulerApiSdk (güclü versiya) aktivdir → fetch_webcast_url yönləndirilir")
-print("=" * 70)
+    print("=" * 70)
+    print("[FIX] sign_webcast_url + fetch_webcast_url avtomatik bağlandı")
+    print("=" * 70)
+except Exception as e:
+    print("=" * 70)
+    print("[FIX] EulerApiSdk xətası:", type(e).__name__, str(e))
+    print("=" * 70)
 
 
 # ============================================================
@@ -1471,10 +1449,6 @@ async def main():
     print(
         "[Status] TikTokLive:",
         "OK" if TIKTOK_AVAILABLE else "UNAVAILABLE",
-    )
-
-    print(
-        "[Status] EulerApiSdk MOCK aktivdir → fetch_webcast_url yönləndirilir"
     )
 
     while True:

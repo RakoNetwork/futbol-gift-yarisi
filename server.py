@@ -11,30 +11,6 @@ from aiohttp import web
 
 
 # ============================================================
-# EulerApiSdk avtomatik uyğunlaşdırma
-# (TikTokLive-dən ƏVVƏL olmalıdır)
-# ============================================================
-try:
-    import EulerApiSdk.api.tik_tok_live as _ttl
-
-    # Real faylları yükləyirik
-    import EulerApiSdk.api.tik_tok_live.sign_webcast_url as _sign
-    import EulerApiSdk.api.tik_tok_live.fetch_webcast_url as _fetch
-
-    # "from EulerApiSdk.api.tik_tok_live import sign_webcast_url" işləsin deyə
-    _ttl.sign_webcast_url = _sign
-    _ttl.fetch_webcast_url = _fetch
-
-    print("=" * 70)
-    print("[FIX] sign_webcast_url + fetch_webcast_url avtomatik bağlandı")
-    print("=" * 70)
-except Exception as e:
-    print("=" * 70)
-    print("[FIX] EulerApiSdk xətası:", type(e).__name__, str(e))
-    print("=" * 70)
-
-
-# ============================================================
 # TikTokLive
 # ============================================================
 

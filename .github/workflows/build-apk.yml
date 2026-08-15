@@ -8,15 +8,10 @@ on:
 
   workflow_dispatch:
 
-
 jobs:
-
   build:
-
     name: Build Android APK
-
     runs-on: ubuntu-22.04
-
     timeout-minutes: 120
 
     steps:
@@ -57,7 +52,6 @@ jobs:
 
       - name: Install system dependencies
         run: |
-
           sudo apt-get update
 
           sudo apt-get install -y \
@@ -86,7 +80,6 @@ jobs:
 
       - name: Upgrade pip
         run: |
-
           python -m pip install --upgrade \
             pip \
             setuptools \
@@ -95,14 +88,10 @@ jobs:
 
       # ==========================================================
       # CYTHON
-      #
-      # VERY IMPORTANT:
-      # Buildozer 1.5.x expects Cython 0.29.x
       # ==========================================================
 
       - name: Install Cython
         run: |
-
           python -m pip uninstall -y Cython cython || true
 
           python -m pip install \
@@ -132,7 +121,6 @@ jobs:
 
       - name: Install Buildozer and python-for-android
         run: |
-
           python -m pip install \
             --no-cache-dir \
             --force-reinstall \
@@ -146,7 +134,6 @@ jobs:
 
       - name: Verify Build tools
         run: |
-
           echo "=============================================="
           echo "PYTHON"
           echo "=============================================="
@@ -190,50 +177,49 @@ jobs:
 
       # ==========================================================
       # HOST DEPENDENCIES
-      #
-      # TikTokLive dependencies are NOT removed.
       # ==========================================================
 
       - name: Install Python dependencies
-  run: |
-    python -m pip install --upgrade pip setuptools wheel
-    pip install \
-      "aiohttp" \
-      "httpx" \
-      "httpcore" \
-      "h11" \
-      "anyio" \
-      "sniffio" \
-      "certifi" \
-      "idna" \
-      "charset-normalizer" \
-      "attrs" \
-      "aiosignal" \
-      "multidict" \
-      "yarl" \
-      "frozenlist" \
-      "async-timeout" \
-      "pyee==13.0.1" \
-      "ffmpy" \
-      "websockets" \
-      "websockets_proxy==0.1.3" \
-      "betterproto==2.0.0b7" \
-      "mashumaro" \
-      "protobuf" \
-      "protobuf3-to-dict" \
-      "typing-extensions" \
-      "TikTokLive==6.5.3" \
-      "TikTokLiveProto" \
-      "pyjnius" \
-      "betterproto2==0.9.0" \
-      "requests" \
-      "websocket-client" \
-      "pydantic==2.12.2" \
-      "pydantic-core==2.41.4" \
-      "annotated-types" \
-      "typing-inspection" \
-      "python-socks" \
-      "EulerApiSdk==0.1.0"
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+          python -m pip install \
+            "aiohttp" \
+            "httpx" \
+            "httpcore" \
+            "h11" \
+            "anyio" \
+            "sniffio" \
+            "certifi" \
+            "idna" \
+            "charset-normalizer" \
+            "attrs" \
+            "aiosignal" \
+            "multidict" \
+            "yarl" \
+            "frozenlist" \
+            "async-timeout" \
+            "pyee==13.0.1" \
+            "ffmpy" \
+            "websockets" \
+            "websockets_proxy==0.1.3" \
+            "betterproto==2.0.0b7" \
+            "mashumaro" \
+            "protobuf" \
+            "protobuf3-to-dict" \
+            "typing-extensions" \
+            "TikTokLive==6.5.3" \
+            "TikTokLiveProto" \
+            "pyjnius" \
+            "betterproto2==0.9.0" \
+            "requests" \
+            "websocket-client" \
+            "pydantic==2.12.2" \
+            "pydantic-core==2.41.4" \
+            "annotated-types" \
+            "typing-inspection" \
+            "python-socks" \
+            "EulerApiSdk==0.1.0"
 
 
       # ==========================================================
@@ -242,7 +228,6 @@ jobs:
 
       - name: Test Python imports
         run: |
-
           python - <<'PY'
 
           import sys
@@ -269,17 +254,13 @@ jobs:
           ]
 
           for package in packages:
-
               try:
-
                   print(
                       package,
                       "=",
                       importlib.metadata.version(package)
                   )
-
               except Exception as e:
-
                   print(
                       package,
                       "ERROR:",
@@ -298,6 +279,7 @@ jobs:
           print("TikTokLive import: OK")
 
           import server
+
           print(
               "server.TIKTOK_AVAILABLE:",
               server.TIKTOK_AVAILABLE
@@ -328,7 +310,6 @@ jobs:
 
       - name: Check Python syntax
         run: |
-
           python -m py_compile main.py
           python -m py_compile server.py
 
@@ -336,15 +317,13 @@ jobs:
 
 
       # ==========================================================
-      # CLEAN OLD BUILDOZER DATA
+      # CLEAN BUILDOZER DATA
       # ==========================================================
 
       - name: Clean Buildozer
         run: |
-
           rm -rf .buildozer
           rm -rf bin
-
           rm -rf "$HOME/.buildozer"
 
           echo "Buildozer cache cleaned."
@@ -356,7 +335,6 @@ jobs:
 
       - name: Show Buildozer configuration
         run: |
-
           echo "=============================================="
           echo "buildozer.spec"
           echo "=============================================="
@@ -402,7 +380,6 @@ jobs:
         env:
           P4A_RELEASE_PYTHON_VERSION: "3.11.9"
         run: |
-
           echo "=============================================="
           echo "STARTING ANDROID BUILD"
           echo "=============================================="
@@ -417,7 +394,6 @@ jobs:
       - name: Find APK
         if: always()
         run: |
-
           echo "=============================================="
           echo "APK / AAB FILES"
           echo "=============================================="

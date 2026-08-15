@@ -38,3 +38,4 @@ python-socks
 python-dateutil
 grpclib
 h2
+hyperframe

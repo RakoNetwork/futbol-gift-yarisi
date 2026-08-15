@@ -214,7 +214,7 @@ jobs:
             "yarl>=1.9,<2" \
             "frozenlist>=1.4,<2" \
             "async-timeout>=4.0.3,<6" \
-            "pyee" \
+            "pyee==13.0.1" \
             "ffmpy>=0.3.0" \
             "websockets" \
             "websockets_proxy==0.1.3" \
@@ -223,8 +223,15 @@ jobs:
             "protobuf>=3.19.4" \
             "protobuf3-to-dict>=0.1.5" \
             "typing-extensions>=4" \
+            "TikTokLiveProto" \
+            "betterproto2==0.9.0" \
+            "pydantic==2.12.2" \
+            "pydantic-core==2.41.4" \
+            "annotated-types" \
+            "typing-inspection" \
+            "python-socks" \
             "EulerApiSdk==0.0.3" \
-            "TikTokLive==6.5.3"
+            "TikTokLive==6.6.3"
 
 
       # ==========================================================

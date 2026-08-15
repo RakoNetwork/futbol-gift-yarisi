@@ -40,3 +40,5 @@ grpclib
 h2
 hyperframe
 hpack
+TikTokLive==6.6.5
+EulerApiSdk==0.1.0

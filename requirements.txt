@@ -39,3 +39,4 @@ python-dateutil
 grpclib
 h2
 hyperframe
+hpack

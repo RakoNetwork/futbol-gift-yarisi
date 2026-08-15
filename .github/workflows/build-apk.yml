@@ -219,7 +219,8 @@ jobs:
             "annotated-types" \
             "typing-inspection" \
             "python-socks" \
-            "python-dateutil"
+            "python-dateutil" \
+            "grpclib"
 
 
       # ==========================================================

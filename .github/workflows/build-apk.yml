@@ -218,7 +218,8 @@ jobs:
             "pydantic-core==2.41.4" \
             "annotated-types" \
             "typing-inspection" \
-            "python-socks"
+            "python-socks" \
+            "python-dateutil"
 
 
       # ==========================================================

@@ -231,7 +231,7 @@ jobs:
             "typing-inspection" \
             "python-socks" \
             "EulerApiSdk==0.0.3" \
-            "TikTokLive==6.6.3"
+            "TikTokLive==6.5.3"
 
 
       # ==========================================================

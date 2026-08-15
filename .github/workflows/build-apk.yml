@@ -222,7 +222,8 @@ jobs:
             "python-dateutil" \
             "grpclib" \
             "h2" \
-            "hyperframe"
+            "hyperframe" \
+            "hpack"
 
       # ==========================================================
       # TEST IMPORTS

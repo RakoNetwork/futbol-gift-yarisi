@@ -269,7 +269,7 @@ jobs:
 
           import aiohttp
           print("aiohttp import: OK")
-          import TikTokLive-fix
+          import TikTokLive
           print("TikTokLive-fix import: OK")
 
           import server

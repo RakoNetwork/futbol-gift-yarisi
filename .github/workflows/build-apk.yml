@@ -220,8 +220,8 @@ jobs:
             "typing-inspection" \
             "python-socks" \
             "python-dateutil" \
-            "grpclib"
-
+            "grpclib" \
+            "h2"
 
       # ==========================================================
       # TEST IMPORTS

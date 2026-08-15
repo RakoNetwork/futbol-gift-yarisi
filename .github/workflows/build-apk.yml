@@ -223,7 +223,7 @@ jobs:
             "protobuf>=3.19.4" \
             "protobuf3-to-dict>=0.1.5" \
             "typing-extensions>=4" \
-            "EulerApiSdk=0.0.3"
+            "EulerApiSdk==0.0.3"
             "TikTokLive==6.6.1"
 
 

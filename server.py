@@ -4,10 +4,52 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
+from types import ModuleType
 
 import aiohttp
 from aiohttp import web
+
+
+# ============================================================
+# MOCK: EulerApiSdk → fetch_webcast_url yönləndirməsi
+# (TikTokLive importundan ƏVVƏL olmalıdır)
+# ============================================================
+
+def yeni_webcast_hadisesi(*args, **kwargs):
+    """
+    Avtomatik gələn sign/webcast URL hadisəsi bura yönləndirilir.
+    İstədiyiniz məntiqi buraya yazın.
+    """
+    print("⚠️ Köhnə avtomatik hadisə tutuldu və yeni koda yönləndirildi!")
+    print("Gələn args:", args)
+    print("Gələn kwargs:", kwargs)
+
+    # Nümunə: sadəcə boş / öz URL-inizi qaytarın
+    # Real cavab strukturuna uyğun dict qaytarmaq lazımdırsa buranı dəyişin
+    return {"url": "https://eulerstream.com"}
+
+
+class FakeLiveModule(ModuleType):
+    def __getattr__(self, name):
+        # TikTokLive-in axtardığı funksiyanı tuturuq
+        if name in ("fetch_webcast_url", "sign_webcast_url"):
+            return yeni_webcast_hadisesi
+        return None
+
+
+# Sistem modullarına müdaxilə
+euler_mock = ModuleType("EulerApiSdk")
+live_mock = FakeLiveModule("EulerApiSdk.api.tik_tok_live")
+
+sys.modules["EulerApiSdk"] = euler_mock
+sys.modules["EulerApiSdk.api"] = ModuleType("EulerApiSdk.api")
+sys.modules["EulerApiSdk.api.tik_tok_live"] = live_mock
+
+print("=" * 70)
+print("[MOCK] EulerApiSdk.api.tik_tok_live → fetch_webcast_url yönləndirildi")
+print("=" * 70)
 
 
 # ============================================================
@@ -17,7 +59,6 @@ from aiohttp import web
 TIKTOK_AVAILABLE = False
 
 TikTokLiveClient = None
-
 ConnectEvent = None
 DisconnectEvent = None
 GiftEvent = None
@@ -1429,8 +1470,7 @@ async def main():
     )
 
     print(
-        "[Status] EulerApiSdk:",
-        "0.0.3 required by project",
+        "[Status] EulerApiSdk MOCK aktivdir → fetch_webcast_url yönləndirilir"
     )
 
     while True:

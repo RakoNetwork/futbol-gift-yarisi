@@ -37,3 +37,4 @@ typing-inspection
 python-socks
 python-dateutil
 grpclib
+h2

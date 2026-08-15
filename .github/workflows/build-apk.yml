@@ -248,7 +248,6 @@ jobs:
               "mashumaro",
               "protobuf",
               "protobuf3-to-dict",
-              "EulerApiSdk",
               "TikTokLive",
           ]
 

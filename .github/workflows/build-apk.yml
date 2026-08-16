@@ -1,98 +1,176 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+  workflow_dispatch:
+
+
+jobs:
+
+  build:
+
+    name: Build Android APK
+
+    runs-on: ubuntu-22.04
+
+    timeout-minutes: 120
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+          cache: "pip"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential git zip unzip wget curl \
+            autoconf automake libtool pkg-config cmake \
+            libffi-dev libssl-dev zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5
+
+      - name: Upgrade pip
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Install Cython
+        run: |
+          python -m pip uninstall -y Cython cython || true
+          python -m pip install --no-cache-dir --force-reinstall "Cython==0.29.37"
+          cython --version
+
+      - name: Install Buildozer and python-for-android
+        run: |
+          python -m pip install --no-cache-dir --force-reinstall \
+            "buildozer==1.5.0" "python-for-android==2024.1.21"
+
+      - name: Verify Build tools
+        run: |
+          python --version
+          buildozer --version
+          python -m pip list
+
+      - name: Install TikTokLive dependencies
+        run: |
+          python -m pip install \
+            --no-cache-dir \
+            "aiohttp>=3.9,<4" \
+            "httpx>=0.26,<0.29" \
+            "httpcore>=1,<2" \
+            "h11>=0.14,<1" \
+            "anyio>=4,<5" \
+            "sniffio>=1.3,<2" \
+            "certifi>=2023,<2027" \
+            "idna>=3,<4" \
+            "charset-normalizer>=3,<4" \
+            "attrs>=23,<26" \
+            "aiosignal>=1.3,<2" \
+            "multidict>=6,<7" \
+            "yarl>=1.9,<2" \
+            "frozenlist>=1.4,<2" \
+            "async-timeout>=4.0.3,<6" \
+            "pyee==13.0.1" \
+            "ffmpy>=0.3.0" \
+            "websockets" \
+            "websockets_proxy==0.1.3" \
+            "betterproto==2.0.0b7" \
+            "mashumaro>=3.5" \
+            "protobuf>=3.19.4" \
+            "protobuf3-to-dict>=0.1.5" \
+            "typing-extensions>=4" \
+            "EulerApiSdk==0.0.3" \
+            "TikTokLive==6.5.3"
+
       - name: Test Python imports
         run: |
           python - <<'PY'
-          import sys
-          import importlib.metadata as md
-
-          print("=" * 70)
-          print("SERVER TEST")
-          print("=" * 70)
-
+          import sys, importlib.metadata
           print("Python:", sys.version)
-
-          packages = [
-              "aiohttp",
-              "httpx",
-              "httpcore",
-              "pyee",
-              "ffmpy",
-              "websockets_proxy",
-              "betterproto",
-              "mashumaro",
-              "protobuf",
-              "protobuf3-to-dict",
-              "EulerApiSdk",
-              "TikTokLive",
-              "python-dateutil",
-              "grpclib",
-              "h2",
-              "hyperframe",
-              "hpack",
-          ]
-
-          print("\nINSTALLED VERSIONS")
-          print("-" * 70)
-
-          for package in packages:
+          packages = ["aiohttp","httpx","pyee","ffmpy","websockets_proxy",
+                      "betterproto","mashumaro","protobuf","protobuf3-to-dict",
+                      "EulerApiSdk","TikTokLive"]
+          for p in packages:
               try:
-                  print(
-                      f"{package}: {md.version(package)}"
-                  )
+                  print(p, "=", importlib.metadata.version(p))
               except Exception as e:
-                  print(
-                      f"{package}: ERROR - {e}"
-                  )
-
-          print("\nIMPORT TESTS")
-          print("-" * 70)
+                  print(p, "ERROR:", e)
 
           import aiohttp
-          print("[OK] aiohttp")
-
-          import httpx
-          print("[OK] httpx")
-
-          import pyee
-          print("[OK] pyee")
-
-          import ffmpy
-          print("[OK] ffmpy")
-
-          import websockets_proxy
-          print("[OK] websockets_proxy")
-
-          import betterproto
-          print("[OK] betterproto")
-
-          import mashumaro
-          print("[OK] mashumaro")
-
-          import protobuf3_to_dict
-          print("[OK] protobuf3_to_dict")
-
-          import grpclib
-          print("[OK] grpclib")
+          print("aiohttp import: OK")
 
           import EulerApiSdk
-          print("[OK] EulerApiSdk")
+          print("EulerApiSdk import: OK")
 
-          import TikTokLive
-          print("[OK] TikTokLive")
+          from TikTokLive import TikTokLiveClient
+          from TikTokLive.events import (
+              ConnectEvent, DisconnectEvent, GiftEvent,
+              LikeEvent, FollowEvent, ShareEvent, CommentEvent,
+          )
+          print("TikTokLive import: OK")
 
           import server
-          print("[OK] server.py")
+          print("server.TIKTOK_AVAILABLE:", server.TIKTOK_AVAILABLE)
+          if not server.TIKTOK_AVAILABLE:
+              raise RuntimeError("TikTokLive import server.py içinde başarısız")
 
-          print(
-              "\nTIKTOK_AVAILABLE:",
-              getattr(server, "TIKTOK_AVAILABLE", "NOT DEFINED")
-          )
-
-          if not getattr(server, "TIKTOK_AVAILABLE", False):
-              raise RuntimeError(
-                  "TikTokLive import server.py içinde başarısız"
-              )
-
-          print("\n" + "=" * 70)
+          app = server.create_app()
+          print("aiohttp application:", app)
           print("ALL PYTHON TESTS PASSED")
-          print("=" * 70)
           PY
+
+      - name: Check Python syntax
+        run: |
+          python -m py_compile main.py
+          python -m py_compile server.py
+          echo "Python syntax OK"
+
+      - name: Clean Buildozer
+        run: |
+          rm -rf .buildozer bin "$HOME/.buildozer"
+          echo "Buildozer cache cleaned."
+
+      - name: Show Buildozer configuration
+        run: |
+          cat buildozer.spec
+          uname -a
+          java -version
+          python --version
+          cython --version
+          buildozer --version
+
+      - name: Build APK
+        env:
+          P4A_RELEASE_PYTHON_VERSION: "3.11.9"
+        run: |
+          buildozer -v android debug
+
+      - name: Find APK
+        if: always()
+        run: |
+          find . -type f \( -name "*.apk" -o -name "*.aab" \) -print
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: futbol-gift-yarisi-apk
+          path: |
+            bin/*.apk
+            bin/*.aab
+          if-no-files-found: error

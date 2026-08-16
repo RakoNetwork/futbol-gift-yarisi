@@ -23,16 +23,14 @@ SSL_CONTEXT = None
 try:
     CA_BUNDLE = certifi.where()
 
-    # Android APK daxilində HTTPS kitabxanalarının
-    # certifi CA bundle istifadə etməsini təmin et.
     os.environ["SSL_CERT_FILE"] = CA_BUNDLE
     os.environ["REQUESTS_CA_BUNDLE"] = CA_BUNDLE
     os.environ["CURL_CA_BUNDLE"] = CA_BUNDLE
 
-    SSL_CONTEXT = ssl.create_default_context(cafile=CA_BUNDLE)
+    SSL_CONTEXT = ssl.create_default_context(
+        cafile=CA_BUNDLE
+    )
 
-    # Təhlükəsizlik:
-    # sertifikat yoxlaması AÇIQ qalır.
     SSL_CONTEXT.check_hostname = True
     SSL_CONTEXT.verify_mode = ssl.CERT_REQUIRED
 
@@ -49,13 +47,9 @@ except Exception as exc:
 
 
 def get_ssl_context():
-    """
-    TikTokLive / aiohttp üçün təhlükəsiz SSL context.
-    """
     if SSL_CONTEXT is not None:
         return SSL_CONTEXT
 
-    # certifi qurulmayıbsa belə SSL-i söndürmə.
     return ssl.create_default_context()
 
 
@@ -66,19 +60,17 @@ def get_ssl_context():
 TIKTOK_AVAILABLE = False
 TikTokLiveClient = None
 
-ConnectEvent = (
-    DisconnectEvent
-    GiftEvent
-    LikeEvent
-    FollowEvent
-) = None
+ConnectEvent = None
+DisconnectEvent = None
+GiftEvent = None
+LikeEvent = None
+FollowEvent = None
 
 WebDefaults = None
 
-UserOfflineError = (
-    UserNotFoundError
-    AlreadyConnectedError
-) = Exception
+UserOfflineError = Exception
+UserNotFoundError = Exception
+AlreadyConnectedError = Exception
 
 
 try:
@@ -248,10 +240,10 @@ async def broadcast_top() -> None:
         "type": "top_supporters",
         "list": [
             {
-                "username": u,
-                "coins": c,
+                "username": username,
+                "coins": coins,
             }
-            for u, c in top
+            for username, coins in top
         ],
     })
 
@@ -300,16 +292,6 @@ def find_player_for_gift(
 async def validate_api_key(
     api_key: str,
 ) -> tuple[bool, str]:
-
-    """
-    API key üçün real network yoxlaması.
-
-    VACIB:
-    Network timeout artıq avtomatik olaraq
-    "key qəbul olundu" hesab edilmir.
-
-    SSL xətası ayrıca qaytarılır.
-    """
 
     if not api_key or len(api_key.strip()) < 8:
 
@@ -364,10 +346,7 @@ async def validate_api_key(
                     f"[API] Euler HTTP status: {resp.status}"
                 )
 
-                if resp.status in (
-                    401,
-                    403,
-                ):
+                if resp.status in (401, 403):
 
                     return (
                         False,
@@ -398,8 +377,6 @@ async def validate_api_key(
                         "API key yanlışdır / etibarsızdır",
                     )
 
-                # 2xx/3xx və explicit rejection yoxdursa
-                # server cavabını müsbət hesab edirik.
                 return (
                     True,
                     "API key qəbul olundu",
@@ -407,9 +384,7 @@ async def validate_api_key(
 
     except asyncio.TimeoutError:
 
-        print(
-            "[API] Euler probe TIMEOUT"
-        )
+        print("[API] Euler probe TIMEOUT")
 
         return (
             False,
@@ -465,26 +440,6 @@ async def validate_api_key(
             f"API key yoxlanarkən xəta: {type(e).__name__}",
         )
 
-    # ========================================================
-    # WebDefaults
-    # ========================================================
-
-    try:
-
-        WebDefaults.tiktok_sign_api_key = api_key
-
-        return (
-            True,
-            "API key qəbul olundu",
-        )
-
-    except Exception as e:
-
-        return (
-            False,
-            f"Key xətası: {e}",
-        )
-
 
 # ============================================================
 # TIKTOK EVENTS
@@ -522,9 +477,7 @@ async def on_connect(event):
 
 async def on_disconnect(event):
 
-    print(
-        "[TikTok] DISCONNECTED"
-    )
+    print("[TikTok] DISCONNECTED")
 
     await broadcast({
         "type": "status",
@@ -601,10 +554,7 @@ async def on_gift(event):
         except Exception:
             count = 1
 
-        count = max(
-            1,
-            count,
-        )
+        count = max(1, count)
 
         gift_type = getattr(
             gift,
@@ -657,9 +607,7 @@ async def on_gift(event):
             username,
         )
 
-        points = (
-            GIFT_POINTS * count
-        )
+        points = GIFT_POINTS * count
 
         scores[player_id] += points
 
@@ -715,10 +663,7 @@ async def on_like(event):
         except Exception:
             amount = 1
 
-        amount = max(
-            1,
-            amount,
-        )
+        amount = max(1, amount)
 
         total_likes += amount
 
@@ -850,11 +795,6 @@ async def start_tiktok(
 
         return
 
-    # ========================================================
-    # IMPORTANT:
-    # connect zamanı da key-in WebDefaults-ə yazılması
-    # ========================================================
-
     current_api_key = api_key
 
     try:
@@ -875,10 +815,6 @@ async def start_tiktok(
         })
 
         return
-
-    # ========================================================
-    # Previous connection
-    # ========================================================
 
     if tiktok_client is not None:
 
@@ -904,10 +840,6 @@ async def start_tiktok(
         })
 
         return
-
-    # ========================================================
-    # Client
-    # ========================================================
 
     client = TikTokLiveClient(
         unique_id=current_user
@@ -1000,7 +932,7 @@ async def start_tiktok(
         except ssl.SSLCertVerificationError as e:
 
             print(
-                "[TikTok] SSL CERTIFICATE ERROR during is_live:",
+                "[TikTok] SSL CERTIFICATE ERROR:",
                 repr(e),
             )
 
@@ -1016,7 +948,7 @@ async def start_tiktok(
         except aiohttp.ClientConnectorCertificateError as e:
 
             print(
-                "[TikTok] HTTPS CERTIFICATE ERROR during is_live:",
+                "[TikTok] HTTPS CERTIFICATE ERROR:",
                 repr(e),
             )
 
@@ -1063,8 +995,7 @@ async def start_tiktok(
             if (
                 "not found" in low
                 or "does not exist" in low
-                or "usernotfound"
-                in err_name.lower()
+                or "usernotfound" in err_name.lower()
             ):
 
                 await broadcast({
@@ -1079,8 +1010,7 @@ async def start_tiktok(
             if (
                 "offline" in low
                 or "not live" in low
-                or "useroffline"
-                in err_name.lower()
+                or "useroffline" in err_name.lower()
             ):
 
                 await broadcast({
@@ -1228,9 +1158,7 @@ async def start_tiktok(
                 in low
             ):
 
-                msg = (
-                    "Webcast SSL sertifikat xətası"
-                )
+                msg = "Webcast SSL sertifikat xətası"
 
             elif (
                 "offline" in low
@@ -1405,9 +1333,7 @@ async def websocket_handler(request):
 
     clients.add(ws)
 
-    print(
-        "[WS] Client connected"
-    )
+    print("[WS] Client connected")
 
     try:
 
@@ -1624,6 +1550,4 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
 
-        print(
-            "Stopped."
-        )
+        print("Stopped.")

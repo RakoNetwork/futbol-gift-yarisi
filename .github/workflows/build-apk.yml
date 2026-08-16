@@ -95,7 +95,7 @@ jobs:
             "protobuf3-to-dict>=0.1.5" \
             "typing-extensions>=4" \
             "EulerApiSdk==0.0.3" \
-            "TikTokLive==6.5.3"
+            "TikTokLive"
 
       - name: Test Python imports
         run: |

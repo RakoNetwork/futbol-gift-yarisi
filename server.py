@@ -841,9 +841,14 @@ async def start_tiktok(
 
         return
 
+    # ========== DEĞİŞİKLİK BURADA ==========
     client = TikTokLiveClient(
-        unique_id=current_user
+        unique_id=current_user,
+        web_kwargs={
+            "verify": False,   # Android SSL self-signed hatasını çözer
+        },
     )
+    # =======================================
 
     tiktok_client = client
 

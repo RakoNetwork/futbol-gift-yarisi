@@ -129,7 +129,7 @@ def find_player_for_gift(gift_name: str, username: str) -> int:
     return abs(hash(username)) % PLAYER_COUNT
 
 # ============================================================
-# EVENT HANDLERS (PirateTok)
+# EVENT HANDLERS
 # ============================================================
 
 async def handle_connect(evt):
@@ -172,12 +172,6 @@ async def handle_gift(evt):
         except Exception:
             count = 1
         count = max(1, count)
-
-        # Streak filter (sadə)
-        repeat_end = data.get("repeatEnd") or data.get("repeat_end")
-        if repeat_end is False or repeat_end == 0:
-            # hələ streak davam edir, bəzən skip etmək olar
-            pass
 
         print(f"[Gift] @{username} -> {gift_name} x{count} ({coins} diamonds)")
 
@@ -277,7 +271,6 @@ async def start_tiktok(username: str):
         })
         return
 
-    # Köhnə bağlantını bağla
     if tiktok_client is not None:
         try:
             await tiktok_client.disconnect()
@@ -288,7 +281,6 @@ async def start_tiktok(username: str):
     client = TikTokLiveClient(current_user)
     tiktok_client = client
 
-    # Event-ləri bağla
     @client.on(EventType.connected)
     async def _on_connected(evt):
         await handle_connect(evt)
@@ -312,9 +304,9 @@ async def start_tiktok(username: str):
     print(f"[TikTok] Connecting to @{current_user} ...")
 
     try:
-        await client.start()
+        await client.connect()          # <-- düzgün metod
     except Exception as e:
-        print("[TikTok] Start error:", e)
+        print("[TikTok] Connect error:", e)
         await broadcast({
             "type": "status",
             "message": f"Bağlantı xətası: {e}",

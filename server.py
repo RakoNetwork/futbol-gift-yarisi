@@ -841,14 +841,7 @@ async def start_tiktok(
 
         return
 
-    # ========== DEĞİŞİKLİK BURADA ==========
-   import ssl
-
-    # SSL context'i doğrulama kapalı oluştur
-    ssl_ctx = ssl.create_default_context()
-    ssl_ctx.check_hostname = False
-    ssl_ctx.verify_mode = ssl.CERT_NONE
-
+    # ========== BURASI DOĞRU OLMALI ==========
     client = TikTokLiveClient(
         unique_id=current_user,
         web_kwargs={
@@ -857,10 +850,10 @@ async def start_tiktok(
             }
         },
         ws_kwargs={
-            "ssl": ssl_ctx,
+            "ssl": False,
         },
     )
-    # =======================================
+    # ========================================
 
     tiktok_client = client
 

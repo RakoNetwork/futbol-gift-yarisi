@@ -24,7 +24,7 @@ mashumaro
 protobuf
 protobuf3-to-dict
 typing-extensions
-TikTokLive==6.6.5
+TikTokLive
 TikTokLiveProto
 EulerApiSdk==0.1.0
 pyjnius

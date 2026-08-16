@@ -141,7 +141,7 @@ jobs:
             "typing-extensions>=4.7.1,<5.0.0" \
             "aiohttp" \
             "TikTokLive==6.6.5" \
-            "EulerStream==0.0.1"
+            "EulerApiSdk==0.0.1"
 
 
       # ==========================================================

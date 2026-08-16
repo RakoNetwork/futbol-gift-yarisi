@@ -13,6 +13,7 @@ TIKTOK_AVAILABLE = False
 TikTokLiveClient = None
 ConnectEvent = DisconnectEvent = GiftEvent = LikeEvent = FollowEvent = None
 WebDefaults = None
+UserOfflineError = UserNotFoundError = AlreadyConnectedError = Exception
 
 try:
     from TikTokLive import TikTokLiveClient
@@ -20,6 +21,20 @@ try:
         ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, FollowEvent,
     )
     from TikTokLive.client.web.web_settings import WebDefaults
+    try:
+        from TikTokLive.client.errors import UserOfflineError, UserNotFoundError, AlreadyConnectedError
+    except Exception:
+        try:
+            from TikTokLive.errors import UserOfflineError, UserNotFoundError, AlreadyConnectedError
+        except Exception:
+            class UserOfflineError(Exception):
+                pass
+
+            class UserNotFoundError(Exception):
+                pass
+
+            class AlreadyConnectedError(Exception):
+                pass
     TIKTOK_AVAILABLE = True
     print("[TikTokLive] IMPORT OK")
 except Exception as exc:
@@ -53,6 +68,7 @@ like_points_given = 0
 tiktok_client = None
 current_user = ""
 current_api_key = ""
+_connect_task = None
 
 
 async def broadcast(data: dict) -> None:
@@ -103,12 +119,44 @@ def find_player_for_gift(gift_name: str, username: str) -> int:
 
 
 async def validate_api_key(api_key: str) -> tuple[bool, str]:
+    """Real validation: length + optional Euler sign-server probe + WebDefaults set."""
     if not api_key or len(api_key.strip()) < 8:
         return False, "API key çox qısadır / boşdur"
     if not TIKTOK_AVAILABLE:
         return False, "TikTokLive yüklənməyib"
+
+    api_key = api_key.strip()
+
+    # Probe Euler sign API — invalid keys usually return 401/403
     try:
-        WebDefaults.tiktok_sign_api_key = api_key.strip()
+        timeout = aiohttp.ClientTimeout(total=12)
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "x-api-key": api_key,
+            "User-Agent": "TikTokLive/6.x",
+        }
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            # Lightweight endpoint; body/status tells us if key is rejected
+            async with session.get(
+                "https://api.eulerstream.com/webcast/room_info",
+                params={"unique_id": "tiktok"},
+                headers=headers,
+            ) as resp:
+                text = (await resp.text())[:300].lower()
+                if resp.status in (401, 403):
+                    return False, "API key yanlışdır / etibarsızdır"
+                if "invalid" in text and ("api" in text or "key" in text or "token" in text):
+                    return False, "API key yanlışdır / etibarsızdır"
+                if "unauthorized" in text or "forbidden" in text:
+                    return False, "API key yanlışdır / etibarsızdır"
+    except asyncio.TimeoutError:
+        # Network slow — still accept key locally so user can try live connect
+        print("[API] Euler probe timeout — key accepted locally")
+    except Exception as e:
+        print("[API] Euler probe error:", type(e).__name__, e)
+
+    try:
+        WebDefaults.tiktok_sign_api_key = api_key
         return True, "API key qəbul olundu"
     except Exception as e:
         return False, f"Key xətası: {e}"
@@ -229,29 +277,54 @@ async def on_follow(event):
 
 
 async def start_tiktok(username: str, api_key: str):
-    global tiktok_client, current_user, current_api_key
+    global tiktok_client, current_user, current_api_key, _connect_task
 
     if not TIKTOK_AVAILABLE:
-        await broadcast({"type": "status", "message": "TikTokLive yüklənməyib", "connected": False})
+        await broadcast({
+            "type": "status",
+            "message": "TikTokLive yüklənməyib",
+            "connected": False,
+            "error": True,
+        })
         return
 
     api_key = (api_key or "").strip()
     if not api_key:
-        await broadcast({"type": "status", "message": "API key yoxdur", "connected": False})
+        await broadcast({
+            "type": "status",
+            "message": "API key yoxdur",
+            "connected": False,
+            "error": True,
+        })
         return
 
     current_api_key = api_key
-    WebDefaults.tiktok_sign_api_key = api_key
+    try:
+        WebDefaults.tiktok_sign_api_key = api_key
+    except Exception as e:
+        await broadcast({
+            "type": "status",
+            "message": f"API key tətbiq xətası: {e}",
+            "connected": False,
+            "error": True,
+        })
+        return
 
+    # disconnect previous
     if tiktok_client is not None:
         try:
             await tiktok_client.disconnect()
         except Exception:
             pass
+        tiktok_client = None
 
     current_user = username.lstrip("@").strip()
     if not current_user:
-        await broadcast({"type": "status", "message": "Test rejimi (TikTok yoxdur)", "connected": False})
+        await broadcast({
+            "type": "status",
+            "message": "Test rejimi (TikTok yoxdur)",
+            "connected": False,
+        })
         return
 
     client = TikTokLiveClient(unique_id=current_user)
@@ -263,13 +336,141 @@ async def start_tiktok(username: str, api_key: str):
     client.add_listener(FollowEvent, on_follow)
 
     print(f"[TikTok] Connecting to @{current_user} ...")
-    await broadcast({"type": "status", "message": f"@{current_user} qoşulur...", "connected": False})
+    await broadcast({
+        "type": "status",
+        "message": f"@{current_user} yoxlanılır...",
+        "connected": False,
+    })
 
     try:
-        await client.start()
+        # 1) Explicit live check (faster / clearer errors than start alone)
+        try:
+            is_live = await asyncio.wait_for(client.is_live(), timeout=20)
+        except asyncio.TimeoutError:
+            await broadcast({
+                "type": "status",
+                "message": "LIVE yoxlama vaxtı bitdi — şəbəkə / API key?",
+                "connected": False,
+                "error": True,
+            })
+            return
+        except UserNotFoundError as e:
+            await broadcast({
+                "type": "status",
+                "message": f"İstifadəçi tapılmadı: @{current_user}",
+                "connected": False,
+                "error": True,
+            })
+            return
+        except Exception as e:
+            err_name = type(e).__name__
+            err_msg = str(e)
+            print("[TikTok] is_live error:", err_name, err_msg)
+            # some versions raise generic errors for offline/not found
+            low = (err_msg or "").lower()
+            if "not found" in low or "does not exist" in low or "usernotfound" in err_name.lower():
+                await broadcast({
+                    "type": "status",
+                    "message": f"İstifadəçi tapılmadı: @{current_user}",
+                    "connected": False,
+                    "error": True,
+                })
+                return
+            if "offline" in low or "not live" in low or "useroffline" in err_name.lower():
+                await broadcast({
+                    "type": "status",
+                    "message": f"@{current_user} hazırda LIVE deyil",
+                    "connected": False,
+                    "error": True,
+                })
+                return
+            # continue to start() anyway — is_live may be flaky
+            is_live = None
+
+        if is_live is False:
+            await broadcast({
+                "type": "status",
+                "message": f"@{current_user} hazırda LIVE deyil",
+                "connected": False,
+                "error": True,
+            })
+            return
+
+        await broadcast({
+            "type": "status",
+            "message": f"@{current_user} qoşulur...",
+            "connected": False,
+        })
+
+        # 2) Start connection (returns Task; ConnectEvent fires when ready)
+        try:
+            task = await asyncio.wait_for(
+                client.start(fetch_live_check=True),
+                timeout=35,
+            )
+            _connect_task = task
+        except asyncio.TimeoutError:
+            await broadcast({
+                "type": "status",
+                "message": "Qoşulma vaxtı bitdi — LIVE / API key yoxla",
+                "connected": False,
+                "error": True,
+            })
+            return
+        except UserOfflineError:
+            await broadcast({
+                "type": "status",
+                "message": f"@{current_user} hazırda LIVE deyil",
+                "connected": False,
+                "error": True,
+            })
+            return
+        except UserNotFoundError:
+            await broadcast({
+                "type": "status",
+                "message": f"İstifadəçi tapılmadı: @{current_user}",
+                "connected": False,
+                "error": True,
+            })
+            return
+        except AlreadyConnectedError:
+            # treat as success path — wait for connect event or report connected
+            await broadcast({
+                "type": "status",
+                "message": f"LIVE @{current_user}",
+                "connected": True,
+                "username": current_user,
+            })
+            return
+        except Exception as e:
+            err_name = type(e).__name__
+            err_msg = str(e)
+            print("[TikTok] start error:", err_name, err_msg)
+            low = (err_msg or "").lower()
+            if "offline" in low or "not live" in low:
+                msg = f"@{current_user} hazırda LIVE deyil"
+            elif "not found" in low or "does not exist" in low:
+                msg = f"İstifadəçi tapılmadı: @{current_user}"
+            elif "api" in low and ("key" in low or "sign" in low or "401" in low or "403" in low):
+                msg = "API key etibarsızdır və ya limit bitib"
+            else:
+                msg = f"Bağlantı xətası: {err_name}: {err_msg}"[:180]
+            await broadcast({
+                "type": "status",
+                "message": msg,
+                "connected": False,
+                "error": True,
+            })
+            return
+
     except Exception as e:
         print("[TikTok] Connect error:", e)
-        await broadcast({"type": "status", "message": f"Bağlantı xətası: {e}", "connected": False})
+        await broadcast({
+            "type": "status",
+            "message": f"Bağlantı xətası: {e}",
+            "connected": False,
+            "error": True,
+        })
 
 
 async def websocket_handler(request):
@@ -295,6 +496,10 @@ async def websocket_handler(request):
                 ok, message = await validate_api_key(api_key)
                 if ok:
                     current_api_key = api_key
+                else:
+                    # do not keep a bad key as current
+                    if current_api_key == api_key:
+                        current_api_key = ""
                 await ws.send_str(json.dumps({
                     "type": "api_key_result", "ok": ok, "message": message,
                 }, ensure_ascii=False))
@@ -304,7 +509,10 @@ async def websocket_handler(request):
                 api_key = (data.get("api_key") or current_api_key or "").strip()
                 if username and not api_key:
                     await ws.send_str(json.dumps({
-                        "type": "status", "message": "Əvvəlcə API key yazın", "connected": False,
+                        "type": "status",
+                        "message": "Əvvəlcə API key yazın",
+                        "connected": False,
+                        "error": True,
                     }, ensure_ascii=False))
                     continue
                 asyncio.create_task(start_tiktok(username, api_key))

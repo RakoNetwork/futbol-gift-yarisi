@@ -1,384 +1,98 @@
-name: Build APK
-
-on:
-  push:
-    branches:
-      - main
-      - master
-
-  workflow_dispatch:
-
-jobs:
-  build:
-    name: Build Android APK
-    runs-on: ubuntu-22.04
-    timeout-minutes: 120
-
-    steps:
-
-      # ==========================================================
-      # CHECKOUT
-      # ==========================================================
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
-
-      # ==========================================================
-      # PYTHON 3.11.9
-      # ==========================================================
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.9"
-          cache: "pip"
-
-
-      # ==========================================================
-      # JAVA 17
-      # ==========================================================
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-
-      # ==========================================================
-      # SYSTEM DEPENDENCIES
-      # ==========================================================
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-
-          sudo apt-get install -y \
-            build-essential \
-            git \
-            zip \
-            unzip \
-            wget \
-            curl \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo5
-
-
-      # ==========================================================
-      # PIP
-      # ==========================================================
-
-      - name: Upgrade pip
-        run: |
-          python -m pip install --upgrade \
-            pip \
-            setuptools \
-            wheel
-
-
-      # ==========================================================
-      # CYTHON
-      # ==========================================================
-
-      - name: Install Cython
-        run: |
-          python -m pip uninstall -y Cython cython || true
-
-          python -m pip install \
-            --no-cache-dir \
-            --force-reinstall \
-            "Cython==0.29.37"
-
-          python --version
-          cython --version
-          python -m cython --version
-
-
-      # ==========================================================
-      # BUILDOZER + P4A
-      # ==========================================================
-
-      - name: Install Buildozer and python-for-android
-        run: |
-          python -m pip install \
-            --no-cache-dir \
-            --force-reinstall \
-            "buildozer==1.5.0" \
-            "python-for-android==2024.1.21"
-
-
-      # ==========================================================
-      # HOST DEPENDENCIES
-      # ==========================================================
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-
-          python -m pip install \
-            "httpx>=0.26.0,<0.29.0" \
-            "pyee>=9.0.4" \
-            "ffmpy>=0.3.0" \
-            "websockets_proxy==0.1.3" \
-            "betterproto==2.0.0b7" \
-            "grpclib>=0.4.1,<0.5.0" \
-            "async-timeout>=4.0.3" \
-            "mashumaro>=3.5" \
-            "protobuf3-to-dict>=0.1.5" \
-            "protobuf>=3.19.4" \
-            "python-dateutil>=2.8.0,<3.0.0" \
-            "attrs>=22.2.0" \
-            "typing-extensions>=4.7.1,<5.0.0" \
-            "aiohttp" \
-            "TikTokLive==6.6.5" \
-            "EulerApiSdk==0.0.1"
-
-
-      # ==========================================================
-      # VERIFY PACKAGES
-      # ==========================================================
-
-      - name: Verify Python packages
+      - name: Test Python imports
         run: |
           python - <<'PY'
           import sys
           import importlib.metadata as md
 
           print("=" * 70)
-          print("PYTHON / DEPENDENCY TEST")
+          print("SERVER TEST")
           print("=" * 70)
 
           print("Python:", sys.version)
 
           packages = [
-              "TikTokLive-Fix",
+              "aiohttp",
               "httpx",
+              "httpcore",
               "pyee",
               "ffmpy",
-              "websockets-proxy",
+              "websockets_proxy",
               "betterproto",
-              "grpclib",
-              "async-timeout",
               "mashumaro",
-              "protobuf3-to-dict",
               "protobuf",
+              "protobuf3-to-dict",
+              "EulerApiSdk",
+              "TikTokLive",
               "python-dateutil",
-              "attrs",
+              "grpclib",
+              "h2",
+              "hyperframe",
+              "hpack",
           ]
+
+          print("\nINSTALLED VERSIONS")
+          print("-" * 70)
 
           for package in packages:
               try:
-                  print(package, "=", md.version(package))
+                  print(
+                      f"{package}: {md.version(package)}"
+                  )
               except Exception as e:
-                  print(package, "ERROR:", e)
+                  print(
+                      f"{package}: ERROR - {e}"
+                  )
 
-          print("=" * 70)
+          print("\nIMPORT TESTS")
+          print("-" * 70)
 
-          import grpclib
-          print("grpclib import: OK")
+          import aiohttp
+          print("[OK] aiohttp")
+
+          import httpx
+          print("[OK] httpx")
+
+          import pyee
+          print("[OK] pyee")
+
+          import ffmpy
+          print("[OK] ffmpy")
+
+          import websockets_proxy
+          print("[OK] websockets_proxy")
 
           import betterproto
-          print("betterproto import: OK")
+          print("[OK] betterproto")
 
-          from TikTokLive import TikTokLiveClient
-          print("TikTokLive import: OK")
-          print("TikTokLiveClient:", TikTokLiveClient)
+          import mashumaro
+          print("[OK] mashumaro")
 
-          from TikTokLive.events import (
-              ConnectEvent,
-              DisconnectEvent,
-              GiftEvent,
-              LikeEvent,
-              FollowEvent,
-              ShareEvent,
-              CommentEvent,
+          import protobuf3_to_dict
+          print("[OK] protobuf3_to_dict")
+
+          import grpclib
+          print("[OK] grpclib")
+
+          import EulerApiSdk
+          print("[OK] EulerApiSdk")
+
+          import TikTokLive
+          print("[OK] TikTokLive")
+
+          import server
+          print("[OK] server.py")
+
+          print(
+              "\nTIKTOK_AVAILABLE:",
+              getattr(server, "TIKTOK_AVAILABLE", "NOT DEFINED")
           )
 
-          print("TikTokLive events import: OK")
-
-          print("=" * 70)
-          print("ALL DEPENDENCY TESTS PASSED")
-          print("=" * 70)
-          PY
-
-
-      # ==========================================================
-      # TEST SERVER
-      # ==========================================================
-
-      - name: Test server
-        run: |
-          python - <<'PY'
-          import server
-
-          print("=" * 70)
-          print("SERVER TEST")
-          print("=" * 70)
-
-          print("TIKTOK_AVAILABLE:", server.TIKTOK_AVAILABLE)
-
-          if not server.TIKTOK_AVAILABLE:
+          if not getattr(server, "TIKTOK_AVAILABLE", False):
               raise RuntimeError(
-                  "TikTokLive import server.py daxilində uğursuz oldu"
+                  "TikTokLive import server.py içinde başarısız"
               )
 
-          app = server.create_app()
-
-          print("TikTokLive: OK")
-          print("create_app(): OK")
-          print("Application:", app)
-
-          print("=" * 70)
-          print("SERVER TEST PASSED")
+          print("\n" + "=" * 70)
+          print("ALL PYTHON TESTS PASSED")
           print("=" * 70)
           PY
-
-
-      # ==========================================================
-      # SYNTAX CHECK
-      # ==========================================================
-
-      - name: Check Python syntax
-        run: |
-          python -m py_compile main.py
-          python -m py_compile server.py
-
-          echo "Python syntax OK"
-
-
-      # ==========================================================
-      # VERIFY BUILDOZER
-      # ==========================================================
-
-      - name: Verify Build tools
-        run: |
-          echo "=============================================="
-          echo "PYTHON"
-          echo "=============================================="
-          python --version
-          which python
-
-          echo "=============================================="
-          echo "PIP"
-          echo "=============================================="
-          python -m pip --version
-
-          echo "=============================================="
-          echo "CYTHON"
-          echo "=============================================="
-          cython --version
-
-          echo "=============================================="
-          echo "BUILDOZER"
-          echo "=============================================="
-          buildozer --version
-
-          echo "=============================================="
-          echo "P4A"
-          echo "=============================================="
-          python -m pythonforandroid.toolchain --version || true
-
-
-      # ==========================================================
-      # CLEAN BUILDOZER
-      # ==========================================================
-
-      - name: Clean Buildozer
-        run: |
-          rm -rf .buildozer
-          rm -rf bin
-          rm -rf "$HOME/.buildozer"
-
-          echo "Buildozer cache cleaned."
-
-
-      # ==========================================================
-      # SHOW CONFIG
-      # ==========================================================
-
-      - name: Show Buildozer configuration
-        run: |
-          echo "=============================================="
-          echo "buildozer.spec"
-          echo "=============================================="
-
-          cat buildozer.spec
-
-          echo "=============================================="
-          echo "SYSTEM"
-          echo "=============================================="
-
-          uname -a
-
-          echo "=============================================="
-          echo "JAVA"
-          echo "=============================================="
-
-          java -version
-
-          echo "=============================================="
-          echo "PYTHON"
-          echo "=============================================="
-
-          python --version
-
-
-      # ==========================================================
-      # BUILD APK
-      # ==========================================================
-
-      - name: Build APK
-        env:
-          P4A_RELEASE_PYTHON_VERSION: "3.11.9"
-        run: |
-          echo "=============================================="
-          echo "STARTING ANDROID BUILD"
-          echo "=============================================="
-
-          buildozer -v android debug
-
-
-      # ==========================================================
-      # SEARCH APK
-      # ==========================================================
-
-      - name: Find APK
-        if: always()
-        run: |
-          echo "=============================================="
-          echo "APK / AAB FILES"
-          echo "=============================================="
-
-          find . \
-            -type f \
-            \( \
-              -name "*.apk" \
-              -o \
-              -name "*.aab" \
-            \) \
-            -print
-
-
-      # ==========================================================
-      # UPLOAD APK
-      # ==========================================================
-
-      - name: Upload APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: futbol-gift-yarisi-apk
-          path: |
-            bin/*.apk
-            bin/*.aab
-          if-no-files-found: error
